@@ -1,0 +1,108 @@
+:root{
+  --bg:#0f141a;
+  --surface:#161b22;
+  --surface-soft:#11161d;
+  --border:rgba(255,255,255,.06);
+  --border-strong:rgba(255,255,255,.12);
+  --text:#e6edf3;
+  --muted:#8b949e;
+  --accent:#2f81f7;
+  --danger:#ff4d4f;
+}
+
+*{
+  margin:0;
+  padding:0;
+  box-sizing:border-box;
+  font-family:system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",Inter,sans-serif;
+}
+
+body{
+  height:100vh;
+  background:var(--bg);
+  display:flex;
+  align-items:center;
+  justify-content:center;
+  color:var(--text);
+  -webkit-font-smoothing:antialiased;
+}
+
+/* CARD */
+.login-card{
+  width:100%;
+  max-width:340px;
+  padding:32px 26px;
+  background:var(--surface);
+  border:1px solid var(--border);
+  border-radius:16px;
+  box-shadow:
+    0 20px 50px rgba(0,0,0,.65),
+    0 0 0 1px rgba(255,255,255,.02);
+}
+
+/* FORM */
+#loginForm{
+  display:flex;
+  flex-direction:column;
+}
+
+/* INPUTS (mais próximos) */
+#loginForm input{
+  width:100%;
+  padding:12px 14px;
+  font-size:14px;
+  background:var(--surface-soft);
+  border:1px solid var(--border);
+  border-radius:10px;
+  color:var(--text);
+  transition:all .15s ease;
+}
+
+/* espaço pequeno entre usuário e senha */
+#loginForm input + input{
+  margin-top:8px;
+}
+
+#loginForm input::placeholder{
+  color:var(--muted);
+}
+
+#loginForm input:focus{
+  outline:none;
+  border-color:var(--border-strong);
+  box-shadow:0 0 0 2px rgba(47,129,247,.15);
+}
+
+/* BOTÃO (mais separado) */
+#loginForm button{
+  width:100%;
+  margin-top:22px;
+  padding:12px 14px;
+  font-size:14px;
+  font-weight:500;
+  background:var(--surface-soft);
+  border:1px solid var(--border);
+  border-radius:10px;
+  color:var(--text);
+  cursor:pointer;
+  transition:background .15s ease, border-color .15s ease;
+  letter-spacing:.02em;
+}
+
+#loginForm button:hover{
+  background:#1a2129; /* levemente mais claro */
+  border-color:var(--border-strong);
+}
+
+#loginForm button:active{
+  background:#151b22; /* clique discreto */
+}
+
+/* ERROR */
+#errorMsg{
+  margin-top:8px;
+  font-size:12px;
+  text-align:center;
+  color:var(--danger);
+  min-height:16px;
+}

@@ -1,0 +1,410 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <link rel="icon" href="favicon.png" type="image/png">
+    <script>
+        if (!sessionStorage.getItem("token") || !sessionStorage.getItem("loggedUser")) {
+            window.location.href = "index.html";
+        }
+    </script>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Página inicial - Workday</title>
+    <style>
+        * { box-sizing: border-box; }
+
+        html { scrollbar-width: thin; scrollbar-color: #30363d #0d1117; }
+        ::-webkit-scrollbar { width: 8px; }
+        ::-webkit-scrollbar-track { background: #0d1117; }
+        ::-webkit-scrollbar-thumb { background: #30363d; border-radius: 6px; }
+        ::-webkit-scrollbar-thumb:hover { background: #484f58; }
+
+        .messages::-webkit-scrollbar { width: 8px; }
+        .messages::-webkit-scrollbar-track { background: #161b22; }
+        .messages::-webkit-scrollbar-thumb { background: #30363d; border-radius: 6px; }
+        .messages::-webkit-scrollbar-thumb:hover { background: #484f58; }
+
+        body {
+            margin: 0;
+            background: #0d1117;
+            font-family: system-ui, -apple-system, Segoe UI, Roboto, sans-serif;
+            color: #e6edf3;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            height: 100vh;
+        }
+
+        .online-box {
+            position: fixed;
+            top: 15px;
+            left: 15px;
+            background: #161b22;
+            border: 1px solid #21262d;
+            padding: 8px 14px;
+            border-radius: 8px;
+            font-size: 12px;
+            color: #8b949e;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.4);
+            z-index: 1000;
+        }
+
+        .container {
+            width: 700px;
+            height: 700px;
+            background: #161b22;
+            border-radius: 10px;
+            border: 1px solid #21262d;
+            display: flex;
+            flex-direction: column;
+            overflow: hidden;
+        }
+
+        .header {
+            padding: 16px;
+            font-size: 15px;
+            font-weight: 600;
+            border-bottom: 1px solid #21262d;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .warning-text { color: white; }
+        .admin-link {
+            text-decoration: none;
+            font-size: 14px;
+            opacity: 0.6;
+            transition: 0.2s;
+        }
+        .admin-link:hover { opacity: 1; transform: scale(1.1); }
+
+        .messages {
+            flex: 1;
+            padding: 16px;
+            overflow-y: auto;
+        }
+
+        .message {
+            padding: 10px 12px;
+            border-radius: 6px;
+            margin-bottom: 10px;
+            background: #0d1117;
+            border: 1px solid #21262d;
+            font-size: 13px;
+        }
+
+        .message-header {
+            display: flex;
+            justify-content: space-between;
+            margin-bottom: 4px;
+        }
+
+        .username { font-weight: 600; }
+        .timestamp { font-size: 11px; color: #8b949e; }
+
+        .form {
+            padding: 14px;
+            border-top: 1px solid #21262d;
+            display: flex;
+            gap: 8px;
+            align-items: center;
+            position: relative;
+        }
+
+        textarea {
+            flex: 1;
+            resize: none;
+            height: 45px;
+            padding: 10px;
+            border-radius: 6px;
+            border: 1px solid #30363d;
+            background: #0d1117;
+            color: #e6edf3;
+            font-size: 13px;
+            outline: none;
+        }
+        textarea:focus { border-color: #58a6ff; }
+
+        button.send-btn {
+            padding: 0 18px;
+            height: 45px;
+            border-radius: 6px;
+            border: none;
+            background: #238636;
+            color: white;
+            font-weight: 500;
+            cursor: pointer;
+        }
+        button.send-btn:hover { background: #2ea043; }
+
+        .emoji-toggle {
+            cursor: pointer;
+            font-size: 20px;
+            opacity: 0.7;
+            transition: 0.2s;
+        }
+        .emoji-toggle:hover { opacity: 1; transform: scale(1.1); }
+
+        .emoji-panel {
+            position: absolute;
+            bottom: 65px;
+            right: 90px;
+            width: 260px;
+            max-height: 200px;
+            overflow-y: auto;
+            background: #161b22;
+            border: 1px solid #30363d;
+            border-radius: 8px;
+            padding: 10px;
+            display: none;
+            flex-wrap: wrap;
+            gap: 6px;
+        }
+        .emoji-panel span {
+            cursor: pointer;
+            font-size: 20px;
+            transition: transform 0.1s ease;
+        }
+        .emoji-panel span:hover { transform: scale(1.2); }
+
+        #mini-profile {
+            position: absolute;
+            top: 10px;
+            right: 10px;
+            background: rgba(0,0,0,0.6);
+            color: #fff;
+            font-family: Arial, sans-serif;
+            font-size: 14px;
+            padding: 6px 12px;
+            border-radius: 8px;
+            box-shadow: 0 2px 5px rgba(0,0,0,0.3);
+            z-index: 1000;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            cursor: pointer;
+            user-select: none;
+        }
+        #mini-profile span { font-weight: bold; color: #fff; }
+
+        #arrow { transition: transform 0.3s; margin-left: 4px; }
+
+        #dropdown-menu {
+            display: none;
+            position: absolute;
+            top: 40px;
+            right: 0;
+            background: rgba(0,0,0,0.9);
+            border-radius: 6px;
+            box-shadow: 0 2px 5px rgba(0,0,0,0.3);
+            padding: 6px 10px;
+            z-index: 1000;
+        }
+        #dropdown-menu button {
+            background: #ff4d4d;
+            color: #fff;
+            border: none;
+            border-radius: 6px;
+            padding: 6px 12px;
+            cursor: pointer;
+            font-size: 14px;
+            transition: background 0.2s;
+            width: 100%;
+        }
+        #dropdown-menu button:hover { background: #e60000; }
+
+        .online-header { display: flex; align-items: center; gap: 8px; }
+        .online-dot {
+            width: 10px;
+            height: 10px;
+            background: #3fb950;
+            border-radius: 50%;
+            animation: pulse 1.5s infinite;
+        }
+        @keyframes pulse {
+            0% { box-shadow: 0 0 0 0 rgba(63,185,80, 0.7); }
+            70% { box-shadow: 0 0 0 8px rgba(63,185,80, 0); }
+            100% { box-shadow: 0 0 0 0 rgba(63,185,80, 0); }
+        }
+    </style>
+</head>
+<body>
+    <div class="side-panel right-panel"></div>
+
+    <div id="mini-profile">
+        <span id="user-phone"></span>
+        <svg id="arrow" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <polyline points="6 9 12 15 18 9"></polyline>
+        </svg>
+    </div>
+
+    <div id="dropdown-menu">
+        <button id="logout">Sair</button>
+    </div>
+
+    <audio id="messageSound" src="message.mp3" preload="auto"></audio>
+
+    <div class="online-box">
+        <div class="online-header">
+            <div class="online-dot"></div>
+            <span id="onlineUsers">0</span>
+        </div>
+    </div>
+
+    <div class="container">
+        <div class="header">
+            <span class="warning-text">As mensagens serão apagadas todos os dias.</span>
+            <a href="https://6bh1xntg0kegg8kp.vercel.app/" class="admin-link">🔒</a>
+        </div>
+        <div class="messages" id="messages"></div>
+        <div class="form">
+            <textarea id="content" placeholder="Escreva uma mensagem..."></textarea>
+            <span class="emoji-toggle" onclick="toggleEmojis()">🙂</span>
+            <button class="send-btn" onclick="sendMessage()">Enviar</button>
+            <div class="emoji-panel" id="emojiPanel"></div>
+        </div>
+    </div>
+
+    <script>
+        const loggedUser = sessionStorage.getItem("loggedUser");
+        let lastMessageId = null;
+        const userColors = ["#58a6ff","#2ea043","#f0883e","#a371f7","#ff7b72","#1f6feb","#3fb950","#d29922","#bc8cff","#ffa657"];
+
+        function getColorFromName(name) {
+            let hash = 0;
+            for (let i = 0; i < name.length; i++) {
+                hash = name.charCodeAt(i) + ((hash << 5) - hash);
+            }
+            return userColors[Math.abs(hash) % userColors.length];
+        }
+
+        function toggleEmojis() {
+            const panel = document.getElementById("emojiPanel");
+            panel.style.display = panel.style.display === "flex" ? "none" : "flex";
+        }
+
+        const emojis = ["😀","😁","😂","🤣","😃","😄","😅","😆","😉","😊","😍","🥰","😘","😎","🤔","😢","😭","😡","🔥","👍","👎","👏","🙌","💪","🎉","❤️","💔","💯","✔️","⚡"];
+        function loadEmojis() {
+            const panel = document.getElementById("emojiPanel");
+            panel.innerHTML = "";
+            emojis.forEach(emoji => {
+                const span = document.createElement("span");
+                span.textContent = emoji;
+                span.onclick = () => {
+                    const textarea = document.getElementById("content");
+                    textarea.value += emoji;
+                    textarea.focus();
+                };
+                panel.appendChild(span);
+            });
+        }
+        loadEmojis();
+
+        async function loadMessages() {
+            try {
+                const res = await fetch('/api/messages');
+                const data = await res.json();
+                if (data.length > 0) {
+                    const lastMessage = data[data.length - 1];
+                    if (lastMessageId && lastMessage.id !== lastMessageId && lastMessage.name !== loggedUser) {
+                        document.getElementById("messageSound").play();
+                    }
+                    lastMessageId = lastMessage.id;
+                }
+                const box = document.getElementById('messages');
+                box.innerHTML = '';
+                data.forEach(msg => {
+                    const div = document.createElement('div');
+                    div.className = 'message';
+                    const date = new Date(msg.created_at);
+                    const formattedDate = date.toLocaleString('pt-BR');
+                    const userColor = getColorFromName(msg.name);
+                    div.innerHTML = `
+                        <div class="message-header">
+                            <span class="username" style="color:${userColor}">${escapeHTML(msg.name)}</span>
+                            <span class="timestamp">${formattedDate}</span>
+                        </div>
+                        <div>${escapeHTML(msg.content)}</div>
+                    `;
+                    box.appendChild(div);
+                });
+                box.scrollTop = box.scrollHeight;
+            } catch(e) {
+                console.error("Erro ao carregar mensagens:", e);
+            }
+        }
+
+        async function sendMessage() {
+            const contentInput = document.getElementById('content');
+            const content = contentInput.value.trim();
+            if (!content) return;
+            await fetch('/api/messages', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ name: loggedUser, content })
+            });
+            contentInput.value = '';
+            loadMessages();
+        }
+
+        function escapeHTML(str) {
+            return str.replace(/[&<>"']/g, match => ({ '&':'&amp;', '<':'&lt;', '>':'&gt;', '"':'&quot;', "'":'&#039;' })[match]);
+        }
+
+        async function updateOnlineStatus() {
+            if (!loggedUser) return;
+            await fetch('/api/online', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ name: loggedUser })
+            });
+        }
+
+        async function loadOnlineUsers() {
+            try {
+                const res = await fetch('/api/online');
+                const data = await res.json();
+                const container = document.getElementById("onlineUsers");
+                if (!Array.isArray(data)) { container.textContent = "0"; return; }
+                // mostra os nomes separados por vírgula
+                const names = data.map(user => user.name);
+                container.textContent = names.length ? names.join(", ") : "0";
+            } catch(e) {
+                console.error("Erro ao carregar usuários online:", e);
+            }
+        }
+
+        loadMessages();
+        setInterval(loadMessages, 3000);
+        updateOnlineStatus();
+        setInterval(updateOnlineStatus, 5000);
+        loadOnlineUsers();
+        setInterval(loadOnlineUsers, 5000);
+
+        const miniProfile = document.getElementById("mini-profile");
+        const dropdownMenu = document.getElementById("dropdown-menu");
+        const arrow = document.getElementById("arrow");
+        document.getElementById("user-phone").textContent = loggedUser;
+
+        miniProfile.onclick = () => {
+            const open = dropdownMenu.style.display === "block";
+            dropdownMenu.style.display = open ? "none" : "block";
+            arrow.style.transform = open ? "rotate(0deg)" : "rotate(180deg)";
+        };
+
+        document.getElementById("logout").onclick = () => {
+            sessionStorage.clear();
+            window.location.href = "index.html";
+        };
+
+        document.addEventListener("click", (e) => {
+            if (!miniProfile.contains(e.target) && !dropdownMenu.contains(e.target)) {
+                dropdownMenu.style.display = "none";
+                arrow.style.transform = "rotate(0deg)";
+            }
+        });
+    </script>
+</body>
+</html>
+
