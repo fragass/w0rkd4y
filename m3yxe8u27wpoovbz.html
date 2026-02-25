@@ -275,7 +275,7 @@
         </div>
     </div>
 
-    <script>
+<script>
         const loggedUser = sessionStorage.getItem("loggedUser");
         let lastMessageId = null;
         const userColors = ["#58a6ff","#2ea043","#f0883e","#a371f7","#ff7b72","#1f6feb","#3fb950","#d29922","#bc8cff","#ffa657"];
@@ -310,40 +310,112 @@
         }
         loadEmojis();
 
+        /* =========================
+           NOVO: EVENTO DE PASTE
+        ========================== */
+        document.getElementById("content").addEventListener("paste", async (event) => {
+            const items = event.clipboardData.items;
+
+            for (let item of items) {
+                if (item.type.indexOf("image") !== -1) {
+                    const file = item.getAsFile();
+                    await uploadImage(file);
+                    event.preventDefault();
+                }
+            }
+        });
+
+        /* =========================
+           NOVO: FUNÇÃO DE UPLOAD
+        ========================== */
+        async function uploadImage(file) {
+            const fileName = `${Date.now()}-${file.name}`;
+
+            const formData = new FormData();
+            formData.append("file", file);
+            formData.append("fileName", fileName);
+
+            const res = await fetch("/api/upload", {
+                method: "POST",
+                body: formData
+            });
+
+            const data = await res.json();
+
+            if (data.url) {
+                await fetch('/api/messages', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        name: loggedUser,
+                        content: "🖼 Imagem enviada (clique para abrir)",
+                        image_url: data.url
+                    })
+                });
+
+                loadMessages();
+            }
+        }
+
         async function loadMessages() {
             try {
                 const res = await fetch('/api/messages');
                 const data = await res.json();
+
                 if (data.length > 0) {
                     const lastMessage = data[data.length - 1];
-if (lastMessageId && lastMessage.id !== lastMessageId) {
 
-    const mentioned = lastMessage.content.includes("@" + loggedUser);
+                    if (lastMessageId && lastMessage.id !== lastMessageId) {
 
-    if (lastMessage.name !== loggedUser || mentioned) {
-        document.getElementById("messageSound").play();
-    }
-}
+                        const mentioned = lastMessage.content && lastMessage.content.includes("@" + loggedUser);
+
+                        if (lastMessage.name !== loggedUser || mentioned) {
+                            document.getElementById("messageSound").play();
+                        }
+                    }
+
                     lastMessageId = lastMessage.id;
                 }
+
                 const box = document.getElementById('messages');
                 box.innerHTML = '';
+
                 data.forEach(msg => {
                     const div = document.createElement('div');
                     div.className = 'message';
+
                     const date = new Date(msg.created_at);
                     const formattedDate = date.toLocaleString('pt-BR');
                     const userColor = getColorFromName(msg.name);
+
+                    let contentHTML;
+
+                    /* =========================
+                       NOVO: RENDER DE IMAGEM
+                    ========================== */
+                    if (msg.image_url) {
+                        contentHTML = `
+                            <a href="${msg.image_url}" target="_blank" style="color:#58a6ff; text-decoration:none;">
+                                🖼 Imagem enviada (clique para abrir)
+                            </a>
+                        `;
+                    } else {
+                        contentHTML = highlightMentions(msg.content);
+                    }
+
                     div.innerHTML = `
                         <div class="message-header">
                             <span class="username" style="color:${userColor}">${escapeHTML(msg.name)}</span>
                             <span class="timestamp">${formattedDate}</span>
                         </div>
-                        <div>${highlightMentions(msg.content)}</div>
+                        <div>${contentHTML}</div>
                     `;
+
                     box.appendChild(div);
                 });
+
                 box.scrollTop = box.scrollHeight;
+
             } catch(e) {
                 console.error("Erro ao carregar mensagens:", e);
             }
@@ -353,29 +425,40 @@ if (lastMessageId && lastMessage.id !== lastMessageId) {
             const contentInput = document.getElementById('content');
             const content = contentInput.value.trim();
             if (!content) return;
+
             await fetch('/api/messages', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ name: loggedUser, content })
+                body: JSON.stringify({
+                    name: loggedUser,
+                    content,
+                    image_url: null
+                })
             });
+
             contentInput.value = '';
             loadMessages();
         }
 
         function escapeHTML(str) {
-            return str.replace(/[&<>"']/g, match => ({ '&':'&amp;', '<':'&lt;', '>':'&gt;', '"':'&quot;', "'":'&#039;' })[match]);
+            return str.replace(/[&<>"']/g, match => ({
+                '&':'&amp;',
+                '<':'&lt;',
+                '>':'&gt;',
+                '"':'&quot;',
+                "'":'&#039;'
+            })[match]);
         }
 
         function highlightMentions(text) {
-    const escaped = escapeHTML(text);
-
-    return escaped.replace(/@(\w+)/g, (match, username) => {
-        if (username === loggedUser) {
-            return `<span class="mention-self">@${username}</span>`;
+            const escaped = escapeHTML(text);
+            return escaped.replace(/@(\w+)/g, (match, username) => {
+                if (username === loggedUser) {
+                    return `<span class="mention-self">@${username}</span>`;
+                }
+                return `<span class="mention">@${username}</span>`;
+            });
         }
-        return `<span class="mention">@${username}</span>`;
-    });
-}
 
         async function updateOnlineStatus() {
             if (!loggedUser) return;
@@ -392,7 +475,6 @@ if (lastMessageId && lastMessage.id !== lastMessageId) {
                 const data = await res.json();
                 const container = document.getElementById("onlineUsers");
                 if (!Array.isArray(data)) { container.textContent = "0"; return; }
-                // mostra os nomes separados por vírgula
                 const names = data.map(user => user.name);
                 container.textContent = names.length ? names.join(", ") : "0";
             } catch(e) {
@@ -429,8 +511,9 @@ if (lastMessageId && lastMessage.id !== lastMessageId) {
                 arrow.style.transform = "rotate(0deg)";
             }
         });
-    </script>
+</script>
 </body>
 </html>
+
 
 
