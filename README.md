@@ -1,7 +1,5 @@
 # Chat Privado
 
-Projeto e ideias feitos originalmente por **fragass**.
-
 > Chat interno web com login, presença online e envio de imagens por Ctrl+V.
 
 ---
@@ -301,4 +299,4 @@ vercel dev
 
 ---
 
-**fragass**.
+Projeto e ideias feitos originalmente por **fragass**.
