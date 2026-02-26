@@ -278,6 +278,7 @@
 <script>
         const loggedUser = sessionStorage.getItem("loggedUser");
         let lastMessageId = null;
+        let pendingImageUrl = null;
         const userColors = ["#58a6ff","#2ea043","#f0883e","#a371f7","#ff7b72","#1f6feb","#3fb950","#d29922","#bc8cff","#ffa657"];
 
         function getColorFromName(name) {
@@ -341,34 +342,28 @@ document.addEventListener("DOMContentLoaded", () => {
         /* =========================
            NOVO: FUNÇÃO DE UPLOAD
         ========================== */
-        async function uploadImage(file) {
-            const fileName = `${Date.now()}-${file.name}`;
+async function uploadImage(file) {
+    const fileName = `${Date.now()}-${file.name}`;
 
-            const formData = new FormData();
-            formData.append("file", file);
-            formData.append("fileName", fileName);
+    const formData = new FormData();
+    formData.append("file", file);
+    formData.append("fileName", fileName);
 
-            const res = await fetch("/api/upload", {
-                method: "POST",
-                body: formData
-            });
+    const res = await fetch("/api/upload", {
+        method: "POST",
+        body: formData
+    });
 
-            const data = await res.json();
+    const data = await res.json();
 
-            if (data.url) {
-                await fetch('/api/messages', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({
-                        name: loggedUser,
-                        content: "🖼 Imagem enviada (clique para abrir)",
-                        image_url: data.url
-                    })
-                });
+    if (data.url) {
+        pendingImageUrl = data.url;
 
-                loadMessages();
-            }
-        }
+        const textarea = document.getElementById("content");
+        textarea.value += "\n🖼 [Imagem pronta para envio]";
+        textarea.focus();
+    }
+}
 
         async function loadMessages() {
             try {
@@ -434,25 +429,27 @@ document.addEventListener("DOMContentLoaded", () => {
             }
         }
 
-        async function sendMessage() {
-            const contentInput = document.getElementById('content');
-            const content = contentInput.value.trim();
-            if (!content) return;
+async function sendMessage() {
+    const contentInput = document.getElementById('content');
+    const content = contentInput.value.trim();
 
-            await fetch('/api/messages', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({
-                    name: loggedUser,
-                    content,
-                    image_url: null
-                })
-            });
+    if (!content && !pendingImageUrl) return;
 
-            contentInput.value = '';
-            loadMessages();
-        }
+    await fetch('/api/messages', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+            name: loggedUser,
+            content: content || "🖼 Imagem enviada",
+            image_url: pendingImageUrl
+        })
+    });
 
+    contentInput.value = '';
+    pendingImageUrl = null;
+
+    loadMessages();
+}
         function escapeHTML(str) {
             return str.replace(/[&<>"']/g, match => ({
                 '&':'&amp;',
