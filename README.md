@@ -1,7 +1,5 @@
 # Chat Privado
 
-> Chat interno web com login, presença online e envio de imagens por Ctrl+V.
-
 ---
 
 ## Sumário
