@@ -18,21 +18,29 @@ module.exports = async function handler(req, res) {
     return res.status(405).json({ error: "Method not allowed" });
   }
 
-  const form = formidable({ multiples: false });
+  const form = new formidable.IncomingForm({
+    multiples: false,
+  });
 
   form.parse(req, async (err, fields, files) => {
     if (err) {
-      console.error("Erro ao processar form:", err);
+      console.error("Erro formidable:", err);
       return res.status(500).json({ error: "Erro ao processar upload" });
     }
 
     try {
-      if (!files.file) {
+      let file = files.file;
+
+      if (Array.isArray(file)) {
+        file = file[0];
+      }
+
+      if (!file) {
         return res.status(400).json({ error: "Nenhum arquivo enviado" });
       }
 
-      const file = files.file;
-      const fileName = fields.fileName || `${Date.now()}-${file.originalFilename}`;
+      const fileName =
+        fields.fileName || `${Date.now()}-${file.originalFilename}`;
 
       const fileData = fs.readFileSync(file.filepath);
 
@@ -44,7 +52,7 @@ module.exports = async function handler(req, res) {
         });
 
       if (error) {
-        console.error("Erro no upload Supabase:", error);
+        console.error("Erro Supabase:", error);
         return res.status(500).json({ error: error.message });
       }
 
