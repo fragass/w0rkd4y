@@ -457,6 +457,8 @@ async function sendMessage() {
 
     isSending = true;
     sendButton.disabled = true;
+    sendButton.style.opacity = "0.6";
+    sendButton.style.cursor = "not-allowed";
 
     try {
         await fetch('/api/messages', {
@@ -477,11 +479,13 @@ async function sendMessage() {
     } finally {
         isSending = false;
         sendButton.disabled = false;
+        sendButton.style.opacity = "1";
+        sendButton.style.cursor = "pointer";
     }
 }
 
 /* =========================
-   ONLINE / PERFIL
+   ONLINE / PERFIL / DROPDOWN
 ========================== */
 async function updateOnlineStatus() {
     if (!loggedUser) return;
@@ -501,22 +505,57 @@ async function loadOnlineUsers() {
     } catch {}
 }
 
-loadMessages();
-setInterval(loadMessages, 3000);
-updateOnlineStatus();
-setInterval(updateOnlineStatus, 5000);
-loadOnlineUsers();
-setInterval(loadOnlineUsers, 5000);
+/* =========================
+   INIT
+========================== */
+document.addEventListener("DOMContentLoaded", () => {
+    // set mini-profile username
+    const miniProfile = document.getElementById("mini-profile");
+    const dropdownMenu = document.getElementById("dropdown-menu");
+    const arrow = document.getElementById("arrow");
+    document.getElementById("user-phone").textContent = loggedUser;
 
-document.getElementById("content").addEventListener("keydown", e => {
-    if (e.key === "Enter" && !e.shiftKey) {
-        e.preventDefault();
-        sendMessage();
-    }
+    // toggle dropdown
+    miniProfile.onclick = () => {
+        const open = dropdownMenu.style.display === "block";
+        dropdownMenu.style.display = open ? "none" : "block";
+        arrow.style.transform = open ? "rotate(0deg)" : "rotate(180deg)";
+    };
+
+    // hide dropdown clicando fora
+    document.addEventListener("click", (e) => {
+        if (!miniProfile.contains(e.target) && !dropdownMenu.contains(e.target)) {
+            dropdownMenu.style.display = "none";
+            arrow.style.transform = "rotate(0deg)";
+        }
+    });
+
+    // logout
+    document.getElementById("logout").onclick = () => {
+        sessionStorage.clear();
+        window.location.href = "index.html";
+    };
+
+    // enviar com ENTER
+    document.getElementById("content").addEventListener("keydown", e => {
+        if (e.key === "Enter" && !e.shiftKey) {
+            e.preventDefault();
+            sendMessage();
+        }
+    });
+
+    // carregar dados iniciais
+    loadMessages();
+    setInterval(loadMessages, 3000);
+    updateOnlineStatus();
+    setInterval(updateOnlineStatus, 5000);
+    loadOnlineUsers();
+    setInterval(loadOnlineUsers, 5000);
 });
 </script>
 </body>
 </html>
+
 
 
 
