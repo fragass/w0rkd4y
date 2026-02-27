@@ -188,12 +188,12 @@ button.send-btn:hover {
     position: absolute;
     top: 10px;
     right: 10px;
-    background: rgba(246,246,243,0.95);
-    color: #2c2c2c;
+    background: rgba(17,17,17,0.95); /* fundo escuro para contraste */
+    color: #ffffff; /* texto branco para visibilidade */
     font-size: 14px;
     padding: 6px 12px;
     border-radius: 10px;
-    box-shadow: 0 4px 8px rgba(0,0,0,0.15);
+    box-shadow: 0 4px 8px rgba(0,0,0,0.25);
     z-index: 1000;
     display: flex;
     align-items: center;
@@ -201,7 +201,11 @@ button.send-btn:hover {
     cursor: pointer;
     user-select: none;
 }
-#mini-profile span { font-weight: bold; color: #2c2c2c; }
+
+#mini-profile span {
+    font-weight: bold;
+    color: #ffffff; /* força branco para o nome */
+}
 
 #arrow {
     transition: transform 0.3s;
@@ -532,6 +536,7 @@ document.getElementById("content").addEventListener("keydown", e => {
 </script>
 </body>
 </html>
+
 
 
 
