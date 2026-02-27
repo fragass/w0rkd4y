@@ -427,7 +427,7 @@ async function loadMessages() {
             const color = getColorFromName(msg.name);
 
             const contentHTML = msg.image_url
-                ? `<a href="${msg.image_url}" target="_blank" style="color:#58a6ff">🖼 Imagem enviada</a>`
+                ? `<a href="${msg.image_url}" target="_blank" style="color:#58a6ff">🖼 Imagem</a>`
                 : highlightMentions(msg.content);
 
             div.innerHTML = `
@@ -469,7 +469,7 @@ async function sendMessage() {
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
                 name: loggedUser,
-                content: content || "🖼 Imagem enviada",
+                content: content || "🖼 Imagem",
                 image_url: pendingImageUrl
             })
         });
@@ -558,6 +558,7 @@ document.addEventListener("DOMContentLoaded", () => {
 </script>
 </body>
 </html>
+
 
 
 
