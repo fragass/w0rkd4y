@@ -329,7 +329,9 @@ function getColorFromName(name) {
 }
 
 function escapeHTML(str) {
-    return str.replace(/[&<>"']/g, match => ({"&":"&amp;","<":"&lt;",">":"&gt;","\"":"&quot;","'":"&#039;"}[match]));
+    return str.replace(/[&<>"']/g, match => ({
+        "&":"&amp;","<":"&lt;",">":"&gt;","\"":"&quot;","'":"&#039;"
+    }[match]));
 }
 
 function highlightMentions(text) {
@@ -338,6 +340,12 @@ function highlightMentions(text) {
         if (username === loggedUser) return `<span class="mention-self">@${username}</span>`;
         return `<span class="mention">@${username}</span>`;
     });
+}
+
+/* VISIBILIDADE DE MENSAGEM (CORREÇÃO) */
+function canUserSeeMessage(msg) {
+    if (!msg.to) return true; // mensagem normal
+    return msg.to === loggedUser || msg.name === loggedUser; // sussurro
 }
 
 /* EMOJIS */
@@ -417,23 +425,27 @@ async function loadMessages() {
         const res = await fetch('/api/messages');
         const data = await res.json();
 
-        if (data.length) {
-            const lastMessage = data[data.length - 1];
-            if (lastMessageId && lastMessage.id !== lastMessageId) {
-                const mentioned = lastMessage.content?.includes("@" + loggedUser);
-                if (lastMessage.name !== loggedUser || mentioned) document.getElementById("messageSound").play();
+        /* 🔔 NOTIFICAÇÃO CORRIGIDA */
+        const visibleMessages = data.filter(msg => canUserSeeMessage(msg));
+
+        if (visibleMessages.length) {
+            const lastVisible = visibleMessages[visibleMessages.length - 1];
+
+            if (lastMessageId && lastVisible.id !== lastMessageId) {
+                const mentioned = lastVisible.content?.includes("@" + loggedUser);
+                if (lastVisible.name !== loggedUser || mentioned) {
+                    document.getElementById("messageSound").play();
+                }
             }
-            lastMessageId = lastMessage.id;
+            lastMessageId = lastVisible.id;
         }
 
         const box = document.getElementById('messages');
         box.innerHTML = '';
 
         data.forEach(msg => {
-            const isWhisper = msg.to !== null; // true se for sussurro
-            const canSee = !isWhisper || msg.to === loggedUser || msg.name === loggedUser; // normal = todos, sussurro = só remetente/destinatário
-
-            if (!canSee) return;
+            const isWhisper = msg.to !== null;
+            if (!canUserSeeMessage(msg)) return;
 
             const div = document.createElement('div');
             div.className = 'message' + (isWhisper ? ' whisper' : '');
@@ -445,13 +457,13 @@ async function loadMessages() {
                 ? `<a href="${msg.image_url}" target="_blank" style="color:#58a6ff">🖼 Imagem</a>`
                 : highlightMentions(msg.content);
 
-div.innerHTML = `
-    <div class="message-header">
-        <span class="username" style="color:${color}">${escapeHTML(msg.name)}</span>
-        <span class="timestamp">${date}</span>
-    </div>
-    <div>${isWhisper ? `<strong>Sussurro:</strong> ${contentHTML}` : contentHTML}</div>
-`;
+            div.innerHTML = `
+                <div class="message-header">
+                    <span class="username" style="color:${color}">${escapeHTML(msg.name)}</span>
+                    <span class="timestamp">${date}</span>
+                </div>
+                <div>${isWhisper ? `<strong>Sussurro:</strong> ${contentHTML}` : contentHTML}</div>
+            `;
 
             box.appendChild(div);
         });
@@ -462,7 +474,7 @@ div.innerHTML = `
     }
 }
 
-/* ENVIO (ANTI DUPLICAÇÃO + SUSSURRO) */
+/* ENVIO */
 async function sendMessage() {
     if (isSending) return;
 
@@ -487,7 +499,7 @@ async function sendMessage() {
                 name: loggedUser,
                 content: content || "🖼 Imagem",
                 image_url: pendingImageUrl,
-                to // envia null se não for sussurro
+                to
             })
         });
 
@@ -509,7 +521,7 @@ async function sendMessage() {
 
 /* OVERLAY */
 function showOverlay(msg, type = "info") {
-    let overlay = document.createElement("div");
+    const overlay = document.createElement("div");
     overlay.className = `overlay ${type}`;
     overlay.textContent = msg;
     document.body.appendChild(overlay);
@@ -520,7 +532,7 @@ function showOverlay(msg, type = "info") {
     }, 2200);
 }
 
-/* ONLINE / PERFIL / DROPDOWN */
+/* ONLINE */
 async function updateOnlineStatus() {
     if (!loggedUser) return;
     await fetch('/api/online', {
@@ -544,6 +556,7 @@ document.addEventListener("DOMContentLoaded", () => {
     const miniProfile = document.getElementById("mini-profile");
     const dropdownMenu = document.getElementById("dropdown-menu");
     const arrow = document.getElementById("arrow");
+
     document.getElementById("user-phone").textContent = loggedUser;
 
     miniProfile.onclick = () => {
@@ -581,6 +594,7 @@ document.addEventListener("DOMContentLoaded", () => {
 </script>
 </body>
 </html>
+
 
 
 
