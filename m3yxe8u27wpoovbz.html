@@ -245,6 +245,39 @@ button.send-btn:hover { background: #2ea043; transform: translateY(-1px); }
     color: #ffd700;
     font-weight: 700;
 }
+.message.whisper {
+    background: #fff5d1;
+    border-color: #ffd166;
+    font-style: italic;
+    position: relative;
+    color: #000;
+}
+.message.whisper::before {
+    position: absolute;
+    top: -14px;
+    left: 8px;
+    font-size: 11px;
+    color: #e67e22;
+    font-weight: bold;
+}
+
+/* Overlay de notificação */
+.overlay {
+    position: fixed;
+    top: 20px;
+    right: 20px;
+    background: rgba(0,0,0,0.85);
+    color: #fff;
+    padding: 12px 18px;
+    border-radius: 8px;
+    font-size: 14px;
+    opacity: 1;
+    transition: opacity 0.4s ease;
+    z-index: 9999;
+}
+.overlay.success { background: #3fb950; }
+.overlay.error { background: #da3633; }
+.overlay.info { background: #2c2c2c; }
     </style>
 </head>
 <body>
@@ -292,47 +325,32 @@ let isSending = false;
 
 const userColors = ["#58a6ff","#2ea043","#f0883e","#a371f7","#ff7b72","#1f6feb","#3fb950","#d29922","#bc8cff","#ffa657"];
 
-/* =========================
-   UTILIDADES
-========================== */
+/* UTILIDADES */
 function getColorFromName(name) {
     let hash = 0;
-    for (let i = 0; i < name.length; i++) {
-        hash = name.charCodeAt(i) + ((hash << 5) - hash);
-    }
+    for (let i = 0; i < name.length; i++) hash = name.charCodeAt(i) + ((hash << 5) - hash);
     return userColors[Math.abs(hash) % userColors.length];
 }
 
 function escapeHTML(str) {
-    return str.replace(/[&<>"']/g, match => ({
-        '&':'&amp;',
-        '<':'&lt;',
-        '>':'&gt;',
-        '"':'&quot;',
-        "'":'&#039;'
-    })[match]);
+    return str.replace(/[&<>"']/g, match => ({"&":"&amp;","<":"&lt;",">":"&gt;","\"":"&quot;","'":"&#039;"}[match]));
 }
 
 function highlightMentions(text) {
     const escaped = escapeHTML(text);
     return escaped.replace(/@(\w+)/g, (match, username) => {
-        if (username === loggedUser) {
-            return `<span class="mention-self">@${username}</span>`;
-        }
+        if (username === loggedUser) return `<span class="mention-self">@${username}</span>`;
         return `<span class="mention">@${username}</span>`;
     });
 }
 
-/* =========================
-   EMOJIS
-========================== */
+/* EMOJIS */
 function toggleEmojis() {
     const panel = document.getElementById("emojiPanel");
     panel.style.display = panel.style.display === "flex" ? "none" : "flex";
 }
 
 const emojis = ["😀","😁","😂","🤣","😃","😄","😅","😆","😉","😊","😍","🥰","😘","😎","🤔","😢","😭","😡","🔥","👍","👎","👏","🙌","💪","🎉","❤️","💔","💯","✔️","⚡"];
-
 function loadEmojis() {
     const panel = document.getElementById("emojiPanel");
     panel.innerHTML = "";
@@ -349,9 +367,7 @@ function loadEmojis() {
 }
 loadEmojis();
 
-/* =========================
-   PASTE DE IMAGEM
-========================== */
+/* PASTE DE IMAGEM */
 document.addEventListener("DOMContentLoaded", () => {
     const contentInput = document.getElementById("content");
     if (!contentInput) return;
@@ -372,21 +388,14 @@ document.addEventListener("DOMContentLoaded", () => {
     });
 });
 
-/* =========================
-   UPLOAD DE IMAGEM
-========================== */
+/* UPLOAD DE IMAGEM */
 async function uploadImage(file) {
     const fileName = `${Date.now()}-${file.name}`;
     const formData = new FormData();
-
     formData.append("file", file);
     formData.append("fileName", fileName);
 
-    const res = await fetch("/api/upload", {
-        method: "POST",
-        body: formData
-    });
-
+    const res = await fetch("/api/upload", { method: "POST", body: formData });
     const data = await res.json();
 
     if (data.url) {
@@ -397,9 +406,16 @@ async function uploadImage(file) {
     }
 }
 
-/* =========================
-   MENSAGENS
-========================== */
+/* PARSE SUSSURRO */
+function parseWhisper(text) {
+    if (text.startsWith("/s ")) {
+        const match = text.match(/^\/s\s+@(\w+)\s+(.+)$/);
+        if (match) return { to: match[1], content: match[2] };
+    }
+    return { to: null, content: text };
+}
+
+/* MENSAGENS */
 async function loadMessages() {
     try {
         const res = await fetch('/api/messages');
@@ -409,9 +425,7 @@ async function loadMessages() {
             const lastMessage = data[data.length - 1];
             if (lastMessageId && lastMessage.id !== lastMessageId) {
                 const mentioned = lastMessage.content?.includes("@" + loggedUser);
-                if (lastMessage.name !== loggedUser || mentioned) {
-                    document.getElementById("messageSound").play();
-                }
+                if (lastMessage.name !== loggedUser || mentioned) document.getElementById("messageSound").play();
             }
             lastMessageId = lastMessage.id;
         }
@@ -420,8 +434,13 @@ async function loadMessages() {
         box.innerHTML = '';
 
         data.forEach(msg => {
+            const isWhisper = msg.to !== null; // true se for sussurro
+            const canSee = !isWhisper || msg.to === loggedUser || msg.name === loggedUser; // normal = todos, sussurro = só remetente/destinatário
+
+            if (!canSee) return;
+
             const div = document.createElement('div');
-            div.className = 'message';
+            div.className = 'message' + (isWhisper ? ' whisper' : '');
 
             const date = new Date(msg.created_at).toLocaleString('pt-BR');
             const color = getColorFromName(msg.name);
@@ -430,13 +449,14 @@ async function loadMessages() {
                 ? `<a href="${msg.image_url}" target="_blank" style="color:#58a6ff">🖼 Imagem</a>`
                 : highlightMentions(msg.content);
 
-            div.innerHTML = `
-                <div class="message-header">
-                    <span class="username" style="color:${color}">${escapeHTML(msg.name)}</span>
-                    <span class="timestamp">${date}</span>
-                </div>
-                <div>${contentHTML}</div>
-            `;
+div.innerHTML = `
+    <div class="message-header">
+        <span class="username" style="color:${color}">${escapeHTML(msg.name)}</span>
+        <span class="timestamp">${date}</span>
+    </div>
+    <div>${isWhisper ? `<strong>Sussurro:</strong> ${contentHTML}` : contentHTML}</div>
+`;
+
             box.appendChild(div);
         });
 
@@ -446,17 +466,17 @@ async function loadMessages() {
     }
 }
 
-/* =========================
-   ENVIO (ANTI DUPLICAÇÃO)
-========================== */
+/* ENVIO (ANTI DUPLICAÇÃO + SUSSURRO) */
 async function sendMessage() {
     if (isSending) return;
 
     const contentInput = document.getElementById('content');
     const sendButton = document.querySelector(".send-btn");
-    const content = contentInput.value.trim();
+    const text = contentInput.value.trim();
 
-    if (!content && !pendingImageUrl) return;
+    if (!text && !pendingImageUrl) return;
+
+    const { to, content } = parseWhisper(text);
 
     isSending = true;
     sendButton.disabled = true;
@@ -470,15 +490,19 @@ async function sendMessage() {
             body: JSON.stringify({
                 name: loggedUser,
                 content: content || "🖼 Imagem",
-                image_url: pendingImageUrl
+                image_url: pendingImageUrl,
+                to // envia null se não for sussurro
             })
         });
 
         contentInput.value = '';
         pendingImageUrl = null;
         await loadMessages();
+
+        if (to) showOverlay(`Sussurro enviado para @${to}`, "success");
     } catch (e) {
         console.error("Erro ao enviar mensagem:", e);
+        if (to) showOverlay(`Falha ao enviar sussurro para @${to}`, "error");
     } finally {
         isSending = false;
         sendButton.disabled = false;
@@ -487,9 +511,20 @@ async function sendMessage() {
     }
 }
 
-/* =========================
-   ONLINE / PERFIL / DROPDOWN
-========================== */
+/* OVERLAY */
+function showOverlay(msg, type = "info") {
+    let overlay = document.createElement("div");
+    overlay.className = `overlay ${type}`;
+    overlay.textContent = msg;
+    document.body.appendChild(overlay);
+
+    setTimeout(() => {
+        overlay.style.opacity = "0";
+        setTimeout(() => overlay.remove(), 400);
+    }, 2200);
+}
+
+/* ONLINE / PERFIL / DROPDOWN */
 async function updateOnlineStatus() {
     if (!loggedUser) return;
     await fetch('/api/online', {
@@ -508,24 +543,19 @@ async function loadOnlineUsers() {
     } catch {}
 }
 
-/* =========================
-   INIT
-========================== */
+/* INIT */
 document.addEventListener("DOMContentLoaded", () => {
-    // set mini-profile username
     const miniProfile = document.getElementById("mini-profile");
     const dropdownMenu = document.getElementById("dropdown-menu");
     const arrow = document.getElementById("arrow");
     document.getElementById("user-phone").textContent = loggedUser;
 
-    // toggle dropdown
     miniProfile.onclick = () => {
         const open = dropdownMenu.style.display === "block";
         dropdownMenu.style.display = open ? "none" : "block";
         arrow.style.transform = open ? "rotate(0deg)" : "rotate(180deg)";
     };
 
-    // hide dropdown clicando fora
     document.addEventListener("click", (e) => {
         if (!miniProfile.contains(e.target) && !dropdownMenu.contains(e.target)) {
             dropdownMenu.style.display = "none";
@@ -533,13 +563,11 @@ document.addEventListener("DOMContentLoaded", () => {
         }
     });
 
-    // logout
     document.getElementById("logout").onclick = () => {
         sessionStorage.clear();
         window.location.href = "index.html";
     };
 
-    // enviar com ENTER
     document.getElementById("content").addEventListener("keydown", e => {
         if (e.key === "Enter" && !e.shiftKey) {
             e.preventDefault();
@@ -547,7 +575,6 @@ document.addEventListener("DOMContentLoaded", () => {
         }
     });
 
-    // carregar dados iniciais
     loadMessages();
     setInterval(loadMessages, 3000);
     updateOnlineStatus();
@@ -558,6 +585,13 @@ document.addEventListener("DOMContentLoaded", () => {
 </script>
 </body>
 </html>
+
+
+
+
+
+
+
 
 
 
