@@ -1,85 +1,69 @@
-import { createClient } from "@supabase/supabase-js";
-
-const supabase = createClient(
-  process.env.SUPABASE_URL,
-  process.env.SUPABASE_ANON_KEY
-);
-
-const DM_TTL_MINUTES = Number(process.env.DM_TTL_MINUTES || 360);
-
-function isValidName(name) {
-  return typeof name === "string" && /^[A-Za-z0-9_]{2,24}$/.test(name);
-}
-function isValidRoom(room) {
-  return typeof room === "string" && /^[A-Za-z0-9_-]{3,32}$/.test(room);
-}
-
-async function cleanupExpired() {
-  const { data: expired } = await supabase
-    .from("private_channels")
-    .select("id")
-    .lt("last_activity", new Date(Date.now() - DM_TTL_MINUTES * 60_000).toISOString());
-
-  if (!expired?.length) return;
-
-  const ids = expired.map((x) => x.id);
-  await supabase.from("private_messages").delete().in("channel_id", ids);
-  await supabase.from("private_channels").delete().in("id", ids);
-}
-
-async function getChannelByRoom(room) {
-  const { data, error } = await supabase
-    .from("private_channels")
-    .select("id, room, user1, user2")
-    .eq("room", room)
-    .maybeSingle();
-
-  if (error || !data) return null;
-  return data;
-}
-
+// api/dm/messages.js
 export default async function handler(req, res) {
   try {
-    await cleanupExpired();
+    const SUPABASE_URL = process.env.SUPABASE_URL;
+    const SUPABASE_SERVICE_ROLE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY;
+
+    if (!SUPABASE_URL || !SUPABASE_SERVICE_ROLE_KEY) {
+      return res.status(500).json({ success: false, error: "Supabase not configured" });
+    }
+
+    const channelsEndpoint = `${SUPABASE_URL}/rest/v1/private_channels`;
+    const dmEndpoint = `${SUPABASE_URL}/rest/v1/private_messages`;
+
+    // helper: pega canal e valida se o user participa
+    async function getChannelByRoom(room) {
+      const r = await fetch(
+        `${channelsEndpoint}?select=id,room,user1,user2&room=eq.${encodeURIComponent(room)}&limit=1`,
+        {
+          headers: {
+            apikey: SUPABASE_SERVICE_ROLE_KEY,
+            Authorization: `Bearer ${SUPABASE_SERVICE_ROLE_KEY}`,
+          },
+        }
+      );
+      const j = await r.json();
+      return Array.isArray(j) && j.length ? j[0] : null;
+    }
 
     if (req.method === "GET") {
       const room = String(req.query.room || "");
       const name = String(req.query.name || "");
 
-      if (!isValidRoom(room) || !isValidName(name)) {
-        return res.status(400).json({ error: "Invalid fields" });
-      }
+      if (!room || !name) return res.status(400).json({ success: false, error: "Missing room/name" });
 
       const channel = await getChannelByRoom(room);
-      if (!channel) return res.status(404).json({ error: "Room not found" });
+      if (!channel) return res.status(404).json([]);
 
       const allowed = channel.user1 === name || channel.user2 === name;
-      if (!allowed) return res.status(403).json({ error: "Not allowed" });
+      if (!allowed) return res.status(403).json([]);
 
-      const { data: msgs, error } = await supabase
-        .from("private_messages")
-        .select("*")
-        .eq("channel_id", channel.id)
-        .order("created_at", { ascending: true });
+      const r = await fetch(
+        `${dmEndpoint}?select=*&channel_id=eq.${encodeURIComponent(channel.id)}&order=created_at.asc`,
+        {
+          headers: {
+            apikey: SUPABASE_SERVICE_ROLE_KEY,
+            Authorization: `Bearer ${SUPABASE_SERVICE_ROLE_KEY}`,
+          },
+        }
+      );
 
-      if (error) return res.status(500).json({ error: "DB error" });
-
-      return res.status(200).json(msgs || []);
+      const data = await r.json();
+      return res.status(200).json(Array.isArray(data) ? data : []);
     }
 
     if (req.method === "POST") {
-      const { room, sender, message, image_url } = req.body || {};
+      const body = req.body || {};
+      const room = body.room;
+      const sender = body.sender;
+      const message = body.message || "";
+      const image_url = body.image_url || null;
 
-      if (!isValidRoom(room) || !isValidName(sender)) {
-        return res.status(400).json({ success: false, error: "Invalid fields" });
-      }
+      const reply_to = body.reply_to ?? null;
+      const reply_preview = body.reply_preview ?? null;
 
-      const msgText = typeof message === "string" ? message.trim() : "";
-      const imgUrl = typeof image_url === "string" && image_url.trim() ? image_url.trim() : null;
-
-      // Agora permite: mensagem OU imagem (ou ambos)
-      if (!msgText && !imgUrl) {
-        return res.status(400).json({ success: false, error: "Empty message" });
+      if (!room || !sender || (!message.trim() && !image_url)) {
+        return res.status(400).json({ success: false, error: "Missing fields" });
       }
 
       const channel = await getChannelByRoom(room);
@@ -88,26 +72,102 @@ export default async function handler(req, res) {
       const allowed = channel.user1 === sender || channel.user2 === sender;
       if (!allowed) return res.status(403).json({ success: false, error: "Not allowed" });
 
-      const payload = {
+      // monta preview no backend quando reply_to existir
+      async function buildReplyPreviewFromDb(id) {
+        if (!id) return null;
+
+        const r = await fetch(
+          `${dmEndpoint}?select=id,sender,message,image_url,created_at,channel_id&id=eq.${encodeURIComponent(id)}&limit=1`,
+          {
+            headers: {
+              apikey: SUPABASE_SERVICE_ROLE_KEY,
+              Authorization: `Bearer ${SUPABASE_SERVICE_ROLE_KEY}`,
+            },
+          }
+        );
+        const arr = await r.json();
+        const original = Array.isArray(arr) && arr.length ? arr[0] : null;
+        if (!original) return null;
+
+        // só pode responder mensagens do MESMO channel_id
+        if (String(original.channel_id) !== String(channel.id)) return null;
+
+        const text = (original.message || "").trim();
+        const snippet =
+          text
+            ? (text.length > 80 ? text.slice(0, 80) + "…" : text)
+            : (original.image_url ? "🖼 Imagem" : "");
+
+        return {
+          id: original.id,
+          name: original.sender,
+          snippet,
+          hasImage: !!original.image_url,
+          created_at: original.created_at,
+        };
+      }
+
+      let finalReplyTo = reply_to;
+      let finalReplyPreview = null;
+
+      try {
+        if (finalReplyTo) {
+          const built = await buildReplyPreviewFromDb(finalReplyTo);
+          if (built) finalReplyPreview = built;
+          else {
+            finalReplyPreview = reply_preview && typeof reply_preview === "object" ? reply_preview : null;
+            if (!finalReplyPreview) finalReplyTo = null;
+          }
+        }
+      } catch {
+        finalReplyPreview = reply_preview && typeof reply_preview === "object" ? reply_preview : null;
+        if (!finalReplyPreview) finalReplyTo = null;
+      }
+
+      const insertBody = {
         channel_id: channel.id,
         sender,
-        message: msgText || (imgUrl ? "🖼 Imagem" : ""),
+        message: message.trim() ? message : "🖼 Imagem",
+        image_url,
+        reply_to: finalReplyTo,
+        reply_preview: finalReplyPreview,
       };
-      if (imgUrl) payload.image_url = imgUrl;
 
-      const { error: insErr } = await supabase.from("private_messages").insert([payload]);
-      if (insErr) return res.status(500).json({ success: false, error: "Insert failed" });
+      const r = await fetch(dmEndpoint, {
+        method: "POST",
+        headers: {
+          apikey: SUPABASE_SERVICE_ROLE_KEY,
+          Authorization: `Bearer ${SUPABASE_SERVICE_ROLE_KEY}`,
+          "Content-Type": "application/json",
+          Prefer: "return=minimal",
+        },
+        body: JSON.stringify(insertBody),
+      });
 
-      await supabase
-        .from("private_channels")
-        .update({ last_activity: new Date().toISOString() })
-        .eq("id", channel.id);
+      if (!r.ok) {
+        const t = await r.text();
+        return res.status(500).json({ success: false, error: t });
+      }
+
+      // atualiza last_activity
+      try {
+        await fetch(`${channelsEndpoint}?room=eq.${encodeURIComponent(room)}`, {
+          method: "PATCH",
+          headers: {
+            apikey: SUPABASE_SERVICE_ROLE_KEY,
+            Authorization: `Bearer ${SUPABASE_SERVICE_ROLE_KEY}`,
+            "Content-Type": "application/json",
+            Prefer: "return=minimal",
+          },
+          body: JSON.stringify({ last_activity: new Date().toISOString() }),
+        });
+      } catch {}
 
       return res.status(200).json({ success: true });
     }
 
-    return res.status(405).json({ error: "Method not allowed" });
-  } catch {
-    return res.status(500).json({ error: "Internal error" });
+    return res.status(405).json({ success: false, error: "Method not allowed" });
+  } catch (e) {
+    return res.status(500).json({ success: false, error: "Internal error", details: String(e?.message || e) });
   }
 }
