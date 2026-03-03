@@ -1,4 +1,3 @@
-<!-- m3yxe8u27wpoovbz.html -->
 <!DOCTYPE html>
 <html lang="pt-BR">
 <head>
@@ -110,9 +109,11 @@
       background: #151a21;
       border: 1px solid rgba(255,255,255,.08);
       font-size: 13px;
-      transition: background 0.2s ease, transform 0.15s ease;
+      transition: background 0.2s ease, transform 0.15s ease, border-color 0.2s ease;
+      cursor: pointer;
     }
     .message:hover { background: #1b2028; transform: translateY(-1px); }
+    .message.selected-reply { border-color: rgba(88,166,255,0.8); box-shadow: 0 0 0 1px rgba(88,166,255,0.18); }
 
     .message-header { display: flex; justify-content: space-between; margin-bottom: 4px; }
     .username { font-weight: 600; color: #ffffff; }
@@ -125,7 +126,46 @@
       gap: 8px;
       align-items: center;
       position: relative;
+      flex-wrap: wrap;
     }
+
+    /* Reply bar */
+    .reply-bar {
+      width: 100%;
+      display: none;
+      background: #10151c;
+      border: 1px solid rgba(255,255,255,.10);
+      border-left: 3px solid rgba(88,166,255,0.85);
+      border-radius: 10px;
+      padding: 10px 10px;
+      margin-bottom: 8px;
+      color: #e6edf3;
+      box-shadow: 0 6px 18px rgba(0,0,0,.35);
+      align-items: center;
+      justify-content: space-between;
+      gap: 10px;
+    }
+    .reply-bar .reply-text {
+      font-size: 12px;
+      color: #c9d1d9;
+      line-height: 1.25;
+      overflow: hidden;
+      white-space: nowrap;
+      text-overflow: ellipsis;
+      max-width: 85%;
+    }
+    .reply-bar .reply-text strong { color: #ffffff; }
+    .reply-bar button {
+      background: transparent;
+      border: 1px solid rgba(255,255,255,.14);
+      color: #ffffff;
+      border-radius: 8px;
+      padding: 6px 10px;
+      cursor: pointer;
+      transition: all .2s ease;
+      font-size: 12px;
+    }
+    .reply-bar button:hover { background: rgba(255,255,255,.06); transform: translateY(-1px); }
 
     textarea {
       flex: 1;
@@ -139,6 +179,7 @@
       font-size: 13px;
       outline: none;
       transition: border 0.2s ease, box-shadow 0.2s ease;
+      min-width: 180px;
     }
     textarea:focus { border-color: #3a3d46; box-shadow: 0 0 0 2px rgba(255,255,255,.12); }
 
@@ -175,6 +216,20 @@
     }
     .emoji-panel span { cursor: pointer; font-size: 20px; transition: transform 0.1s ease; }
     .emoji-panel span:hover { transform: scale(1.3); }
+
+    /* reply preview inside message */
+    .reply-preview {
+      background: rgba(255,255,255,.04);
+      border: 1px solid rgba(255,255,255,.08);
+      border-left: 3px solid rgba(88,166,255,0.75);
+      padding: 8px 10px;
+      border-radius: 10px;
+      margin-bottom: 8px;
+      font-size: 12px;
+      color: #c9d1d9;
+    }
+    .reply-preview .rp-top { font-weight: 700; color: #ffffff; font-size: 12px; margin-bottom: 4px; }
+    .reply-preview .rp-snippet { opacity: .95; }
 
     #mini-profile {
       position: fixed;
@@ -266,26 +321,10 @@
     .overlay.error { background: #da3633; }
     .overlay.info { background: #2c2c2c; }
 
-    @media (max-width: 992px) {
-      .container { width: 90%; height: 80vh; }
-      .emoji-panel { right: 20px; bottom: 80px; width: 240px; }
-    }
     @media (max-width: 768px) {
-      .container { height: 75vh; }
       .form { flex-direction: column; align-items: stretch; gap: 6px; }
-      textarea { height: 60px; font-size: 14px; }
       button.send-btn { width: 100%; }
       .emoji-panel { width: 90%; right: 5%; bottom: 80px; }
-      .header { flex-direction: column; align-items: flex-start; gap: 6px; }
-    }
-    @media (max-width: 480px) {
-      body { padding: 5px; }
-      .container { height: 85vh; }
-      #mini-profile { font-size: 13px; padding: 4px 10px; top: 5px; right: 5px; }
-      .online-box { font-size: 11px; padding: 6px 10px; top: 5px; left: 5px; }
-      .warning-text { font-size: 12px; text-align: center; }
-      .messages { padding: 10px; }
-      textarea { height: 55px; font-size: 13px; }
     }
   </style>
 </head>
@@ -323,6 +362,11 @@
     <div class="messages" id="messages"></div>
 
     <div class="form">
+      <div class="reply-bar" id="replyBar">
+        <div class="reply-text" id="replyBarText"></div>
+        <button type="button" id="cancelReplyBtn">Cancelar</button>
+      </div>
+
       <textarea id="content" placeholder="Escreva uma mensagem... (use CTRL + V para enviar imagens)"></textarea>
       <span class="emoji-toggle" onclick="toggleEmojis()">🙂</span>
       <button class="send-btn" onclick="sendMessage()">Enviar</button>
@@ -340,6 +384,11 @@
     let currentRoom = null;
     let currentOther = null;
 
+    // reply state
+    let replyState = null; // { id, preview: {id,name,snippet,hasImage,created_at} }
+    let lastRenderedElements = [];
+
+    // typing
     let typingDebounceTimer = null;
     let lastTypingSentAt = 0;
 
@@ -414,6 +463,68 @@
     }
     loadEmojis();
 
+    // ---------- Reply UI ----------
+    function renderReplyBar() {
+      const bar = document.getElementById("replyBar");
+      const txt = document.getElementById("replyBarText");
+
+      if (!replyState || !replyState.preview) {
+        bar.style.display = "none";
+        txt.textContent = "";
+        return;
+      }
+
+      const p = replyState.preview;
+      const when = p.created_at ? new Date(p.created_at).toLocaleString("pt-BR") : "";
+      txt.innerHTML = `<strong>Respondendo a @${escapeHTML(p.name || "")}</strong> — ${escapeHTML(p.snippet || "")}${when ? ` <span style="opacity:.75">(${when})</span>` : ""}`;
+      bar.style.display = "flex";
+    }
+
+    function clearReplySelection() {
+      replyState = null;
+      renderReplyBar();
+      lastRenderedElements.forEach(el => el.classList.remove("selected-reply"));
+    }
+
+    function setReplyFromMessage(msg, element) {
+      if (!msg || !msg.id) return;
+
+      const text = (msg.content || msg.message || "").trim();
+      const hasImage = !!msg.image_url;
+      const snippet = text
+        ? (text.length > 80 ? text.slice(0, 80) + "…" : text)
+        : (hasImage ? "🖼 Imagem" : "");
+
+      const author = msg.name || msg.sender || "Desconhecido";
+      const createdAt = msg.created_at || null;
+
+      replyState = {
+        id: msg.id,
+        preview: {
+          id: msg.id,
+          name: author,
+          snippet,
+          hasImage,
+          created_at: createdAt,
+        }
+      };
+
+      lastRenderedElements.forEach(el => el.classList.remove("selected-reply"));
+      if (element) element.classList.add("selected-reply");
+
+      renderReplyBar();
+      showOverlay(`Respondendo @${author}`, "info");
+
+      const textarea = document.getElementById("content");
+      textarea.focus();
+    }
+
+    document.getElementById("cancelReplyBtn").addEventListener("click", () => {
+      clearReplySelection();
+      showOverlay("Reply cancelado.", "info");
+    });
+
+    // ---------- PASTE DE IMAGEM ----------
     document.addEventListener("DOMContentLoaded", () => {
       const contentInput = document.getElementById("content");
       if (!contentInput) return;
@@ -459,6 +570,7 @@
       }
     }
 
+    // ---------- Comandos ----------
     function parseWhisper(text) {
       if (text.startsWith("/s ")) {
         const match = text.match(/^\/s\s+@(\w+)\s+(.+)$/);
@@ -467,20 +579,56 @@
       return { to: null, content: text };
     }
 
+    // ✅ NOVO: aceita nomes com espaços e converte pra um nome válido (slug)
+    function normalizeRoomName(roomRaw) {
+      let room = (roomRaw || "").trim();
+
+      // espaços -> hífen
+      room = room.replace(/\s+/g, "-");
+
+      // remove chars fora do permitido
+      room = room.replace(/[^A-Za-z0-9_-]/g, "");
+
+      // tamanho máx
+      room = room.slice(0, 32);
+
+      return room;
+    }
+
+    // ✅ NOVO: /c @user QUALQUER NOME AQUI
     function parseCreateRoom(text) {
-      const match = text.match(/^\/c\s+@(\w+)\s+([A-Za-z0-9_-]{3,32})$/);
+      const match = text.match(/^\/c\s+@(\w+)\s+(.+)$/);
       if (!match) return null;
-      return { target: match[1], room: match[2] };
+
+      const target = match[1];
+      const roomRaw = match[2];
+
+      const room = normalizeRoomName(roomRaw);
+
+      // se ficou inválido
+      if (!room || room.length < 3) return { target, room: null, roomRaw };
+
+      return { target, room, roomRaw };
     }
+
+    // ✅ NOVO: /entrar QUALQUER NOME AQUI
     function parseEnterRoom(text) {
-      const match = text.match(/^\/entrar\s+([A-Za-z0-9_-]{3,32})$/);
+      const match = text.match(/^\/entrar\s+(.+)$/);
       if (!match) return null;
-      return { room: match[1] };
+
+      const roomRaw = match[1];
+      const room = normalizeRoomName(roomRaw);
+
+      if (!room || room.length < 3) return { room: null, roomRaw };
+
+      return { room, roomRaw };
     }
+
     function isLeaveCommand(text) {
       return /^\/sair\s*$/.test(text);
     }
 
+    // ---------- Typing ----------
     async function sendTyping(isTyping) {
       if (!loggedUser) return;
 
@@ -509,7 +657,6 @@
         typingDebounceTimer = setTimeout(() => sendTyping(true), 120);
         return;
       }
-
       sendTyping(false);
     }
 
@@ -554,6 +701,20 @@
       }
     }
 
+    // ---------- Render helpers ----------
+    function buildReplyPreviewHTML(preview) {
+      if (!preview || typeof preview !== "object") return "";
+      const name = preview.name || "";
+      const snippet = preview.snippet || "";
+      return `
+        <div class="reply-preview">
+          <div class="rp-top">↩️ Respondendo a @${escapeHTML(name)}</div>
+          <div class="rp-snippet">${highlightMentions(snippet)}</div>
+        </div>
+      `;
+    }
+
+    // ---------- Load public ----------
     async function loadPublicMessages(options = {}) {
       const { forceScrollBottom = false } = options;
 
@@ -582,9 +743,11 @@
         const shouldAutoScroll = forceScrollBottom || distanceFromBottom < 80;
 
         box.innerHTML = '';
+        lastRenderedElements = [];
 
         visibleMessages.forEach(msg => {
           const isWhisper = msg.to !== null;
+
           const div = document.createElement('div');
           div.className = 'message' + (isWhisper ? ' whisper' : '');
 
@@ -595,19 +758,26 @@
             ? `<a href="${escapeHTML(msg.image_url)}" target="_blank" style="color:#58a6ff">🖼 Imagem</a>`
             : highlightMentions(msg.content);
 
+          const replyHTML = buildReplyPreviewHTML(msg.reply_preview);
+
           div.innerHTML = `
             <div class="message-header">
               <span class="username" style="color:${color}">${escapeHTML(msg.name)}</span>
               <span class="timestamp">${date}</span>
             </div>
+            ${replyHTML}
             <div>${isWhisper ? `<strong>Sussurro:</strong> ${contentHTML}` : contentHTML}</div>
           `;
 
+          div.addEventListener("click", () => setReplyFromMessage(msg, div));
+
           box.appendChild(div);
+          lastRenderedElements.push(div);
         });
 
-        if (shouldAutoScroll) box.scrollTop = box.scrollHeight;
-        else {
+        if (shouldAutoScroll) {
+          box.scrollTop = box.scrollHeight;
+        } else {
           const heightDiff = box.scrollHeight - previousScrollHeight;
           box.scrollTop = previousScrollTop + heightDiff;
         }
@@ -616,6 +786,7 @@
       }
     }
 
+    // ---------- Load DM ----------
     async function loadDmMessages(options = {}) {
       const { forceScrollBottom = false } = options;
       if (!currentRoom) return;
@@ -632,6 +803,7 @@
         const shouldAutoScroll = forceScrollBottom || distanceFromBottom < 80;
 
         box.innerHTML = '';
+        lastRenderedElements = [];
 
         msgs.forEach(m => {
           const div = document.createElement('div');
@@ -644,18 +816,26 @@
             ? `<a href="${escapeHTML(m.image_url)}" target="_blank" style="color:#58a6ff">🖼 Imagem</a>` + (m.message ? `<div style="margin-top:6px;">${highlightMentions(m.message)}</div>` : "")
             : highlightMentions(m.message || "");
 
+          const replyHTML = buildReplyPreviewHTML(m.reply_preview);
+
           div.innerHTML = `
             <div class="message-header">
               <span class="username" style="color:${color}">${escapeHTML(m.sender)}</span>
               <span class="timestamp">${date}</span>
             </div>
+            ${replyHTML}
             <div>${dmContentHTML}</div>
           `;
+
+          div.addEventListener("click", () => setReplyFromMessage(m, div));
+
           box.appendChild(div);
+          lastRenderedElements.push(div);
         });
 
-        if (shouldAutoScroll) box.scrollTop = box.scrollHeight;
-        else {
+        if (shouldAutoScroll) {
+          box.scrollTop = box.scrollHeight;
+        } else {
           const heightDiff = box.scrollHeight - previousScrollHeight;
           box.scrollTop = previousScrollTop + heightDiff;
         }
@@ -669,8 +849,8 @@
       return loadPublicMessages(options);
     }
 
+    // ---------- DM create/enter/leave ----------
     async function createRoom(target, room) {
-      // ✅ bloqueia /c @seu_proprio_nome ...
       if (target === loggedUser) {
         showOverlay("Você precisa marcar OUTRO usuário para criar uma sala. Ex: /c @fulano sala123", "error");
         return;
@@ -684,8 +864,6 @@
             creator: loggedUser,
             target,
             room,
-
-            // compat extra
             name: loggedUser,
             user1: loggedUser,
             user2: target,
@@ -699,7 +877,6 @@
           showOverlay("Erro ao criar/abrir sala ❌", "error");
           return;
         }
-
         if (!data.success) {
           showOverlay(data.error || "Erro ao criar/abrir sala ❌", "error");
           return;
@@ -710,7 +887,7 @@
         const roomToEnter = data.room || room;
         await enterRoom(roomToEnter);
 
-      } catch (e) {
+      } catch {
         showOverlay("Erro ao criar/abrir sala ❌", "error");
       }
     }
@@ -736,6 +913,7 @@
 
         setHeader();
         clearTypingUI();
+        clearReplySelection();
         await sendTyping(false);
         await loadMessages({ forceScrollBottom: true });
         showOverlay(`Entrou na sala "${currentRoom}" ✅`, "success");
@@ -767,10 +945,12 @@
 
       setHeader();
       clearTypingUI();
+      clearReplySelection();
       await loadMessages({ forceScrollBottom: true });
       showOverlay(`Saiu da sala "${left}" ✅`, "success");
     }
 
+    // ---------- Send ----------
     async function sendPublicMessage(text) {
       const contentInput = document.getElementById('content');
       const { to, content } = parseWhisper(text);
@@ -782,12 +962,15 @@
           name: loggedUser,
           content: content || "🖼 Imagem",
           image_url: pendingImageUrl,
-          to
+          to,
+          reply_to: replyState?.id ?? null,
+          reply_preview: replyState?.preview ?? null,
         })
       });
 
       contentInput.value = '';
       pendingImageUrl = null;
+      clearReplySelection();
 
       await loadMessages({ forceScrollBottom: true });
 
@@ -804,12 +987,15 @@
           room: currentRoom,
           sender: loggedUser,
           message: text,
-          image_url: pendingImageUrl
+          image_url: pendingImageUrl,
+          reply_to: replyState?.id ?? null,
+          reply_preview: replyState?.preview ?? null,
         })
       });
 
       contentInput.value = '';
       pendingImageUrl = null;
+      clearReplySelection();
 
       await loadMessages({ forceScrollBottom: true });
     }
@@ -824,17 +1010,42 @@
       const create = parseCreateRoom(text);
       const enter = parseEnterRoom(text);
 
+      // ✅ create room (agora aceita espaços no nome)
       if (create) {
         contentInput.value = "";
+
+        if (!create.room) {
+          showOverlay('Nome da sala inválido. Use letras/números e pelo menos 3 caracteres.', "error");
+          onUserTyping();
+          return;
+        }
+
+        if (create.roomRaw && create.roomRaw.trim() !== create.room) {
+          showOverlay(`Nome da sala ajustado para: "${create.room}"`, "info");
+        }
+
         showOverlay(`Abrindo sala com @${create.target}...`, "info");
         await createRoom(create.target, create.room);
         onUserTyping();
         return;
       }
 
+      // ✅ enter room (agora aceita espaços no nome)
       if (enter) {
         contentInput.value = "";
-        showOverlay(`Entrando em "${enter.room}"...`, "info");
+
+        if (!enter.room) {
+          showOverlay('Nome da sala inválido. Use letras/números e pelo menos 3 caracteres.', "error");
+          onUserTyping();
+          return;
+        }
+
+        if (enter.roomRaw && enter.roomRaw.trim() !== enter.room) {
+          showOverlay(`Entrando em: "${enter.room}"`, "info");
+        } else {
+          showOverlay(`Entrando em "${enter.room}"...`, "info");
+        }
+
         await enterRoom(enter.room);
         onUserTyping();
         return;
@@ -856,8 +1067,10 @@
 
       try {
         await sendTyping(false);
+
         if (chatMode === "dm") await sendDmMessage(text);
         else await sendPublicMessage(text);
+
       } catch (e) {
         console.error("Erro ao enviar:", e);
         showOverlay("Falha ao enviar mensagem ❌", "error");
@@ -870,6 +1083,7 @@
       }
     }
 
+    // ---------- Online ----------
     async function updateOnlineStatus() {
       if (!loggedUser) return;
       await fetch('/api/online', {
@@ -888,6 +1102,7 @@
       } catch {}
     }
 
+    // ---------- Init ----------
     document.addEventListener("DOMContentLoaded", () => {
       const miniProfile = document.getElementById("mini-profile");
       const dropdownMenu = document.getElementById("dropdown-menu");
@@ -915,7 +1130,7 @@
         window.location.href = "index.html";
       };
 
-      contentInput.addEventListener("keydown", (e) => {
+      contentInput.addEventListener("keydown", e => {
         if (e.key === "Enter" && !e.shiftKey) {
           e.preventDefault();
           sendMessage();
@@ -927,6 +1142,7 @@
       contentInput.addEventListener("blur", () => sendTyping(false));
 
       setHeader();
+      renderReplyBar();
 
       loadMessages();
       setInterval(() => loadMessages(), 3000);
