@@ -28,13 +28,13 @@ export default async function handler(req, res) {
   }
 
   if (req.method === "POST") {
-    const { name, content, image_url, to = null } = req.body; // <-- garante 'to' mesmo null
+    const { name, content, image_url, to = null } = req.body;
 
     if (!name || !content) {
       return res.status(400).json({ error: "Missing fields" });
     }
 
-    const body = { name, content, to }; // <-- envia 'to' sempre, nullable
+    const body = { name, content, to };
     if (image_url) body.image_url = image_url;
 
     try {
@@ -62,4 +62,3 @@ export default async function handler(req, res) {
 
   return res.status(405).json({ error: "Method not allowed" });
 }
-
