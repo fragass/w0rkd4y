@@ -253,7 +253,15 @@ button.send-btn:hover { background: #151a21; transform: translateY(-1px); }
 }
 .message.whisper:hover { background: #332d46; }
 
-/* Overlay de notificação */
+/* DM */
+.message.dm {
+    background: #0f1a13;
+    border: 1px solid rgba(63,185,80,0.35);
+    color: #d7ffe6;
+}
+.message.dm:hover { background: #14261b; }
+
+/* Overlay */
 .overlay {
     position: fixed;
     bottom: 20px;
@@ -267,7 +275,7 @@ button.send-btn:hover { background: #151a21; transform: translateY(-1px); }
     z-index: 9999;
     transition: opacity 0.4s ease, transform 0.3s ease;
 }
-.overlay.success { background: #151a21; color: #ffffff; } /* Sussurro enviado com sucesso */
+.overlay.success { background: #151a21; color: #ffffff; }
 .overlay.error { background: #da3633; }
 .overlay.info { background: #2c2c2c; }
 
@@ -322,7 +330,7 @@ button.send-btn:hover { background: #151a21; transform: translateY(-1px); }
 
     <div class="container">
         <div class="header">
-                        <span class="warning-text">Mensagens com 24 horas de envio serão apagadas todos os dias à meia-noite.</span>
+            <span class="warning-text" id="headerTitle">Mensagens com 24 horas de envio serão apagadas todos os dias à meia-noite.</span>
             <a href="https://6bh1xntg0kegg8kp.vercel.app/" class="admin-link">🔒</a>
         </div>
         <div class="messages" id="messages"></div>
@@ -340,6 +348,10 @@ let lastMessageId = null;
 let pendingImageUrl = null;
 let isSending = false;
 
+let chatMode = "public"; // "public" | "dm"
+let currentRoom = null;
+let currentOther = null;
+
 const userColors = ["#58a6ff","#2ea043","#f0883e","#a371f7","#ff7b72","#1f6feb","#3fb950","#d29922","#bc8cff","#ffa657"];
 
 /* UTILIDADES */
@@ -350,7 +362,7 @@ function getColorFromName(name) {
 }
 
 function escapeHTML(str) {
-    return str.replace(/[&<>"']/g, match => ({
+    return String(str || "").replace(/[&<>"']/g, match => ({
         "&":"&amp;","<":"&lt;",">":"&gt;","\"":"&quot;","'":"&#039;"
     }[match]));
 }
@@ -363,10 +375,32 @@ function highlightMentions(text) {
     });
 }
 
-/* VISIBILIDADE DE MENSAGEM (CORREÇÃO) */
+/* VISIBILIDADE DE MENSAGEM (SUSSURRO) */
 function canUserSeeMessage(msg) {
-    if (!msg.to) return true; // mensagem normal
-    return msg.to === loggedUser || msg.name === loggedUser; // sussurro
+    if (!msg.to) return true;
+    return msg.to === loggedUser || msg.name === loggedUser;
+}
+
+/* OVERLAY */
+function showOverlay(msg, type = "info") {
+    const overlay = document.createElement("div");
+    overlay.className = `overlay ${type}`;
+    overlay.textContent = msg;
+    document.body.appendChild(overlay);
+
+    setTimeout(() => {
+        overlay.style.opacity = "0";
+        setTimeout(() => overlay.remove(), 400);
+    }, 2200);
+}
+
+function setHeader() {
+    const el = document.getElementById("headerTitle");
+    if (chatMode === "dm" && currentRoom) {
+        el.textContent = `🔐 Sala privada: ${currentRoom} (com @${currentOther}) — use /sair para voltar ao público`;
+    } else {
+        el.textContent = "Mensagens com 24 horas de envio serão apagadas todos os dias à meia-noite.";
+    }
 }
 
 /* EMOJIS */
@@ -392,7 +426,7 @@ function loadEmojis() {
 }
 loadEmojis();
 
-/* PASTE DE IMAGEM */
+/* PASTE DE IMAGEM (AGORA TAMBÉM EM DM) */
 document.addEventListener("DOMContentLoaded", () => {
     const contentInput = document.getElementById("content");
     if (!contentInput) return;
@@ -420,14 +454,21 @@ async function uploadImage(file) {
     formData.append("file", file);
     formData.append("fileName", fileName);
 
-    const res = await fetch("/api/upload", { method: "POST", body: formData });
-    const data = await res.json();
+    try {
+        const res = await fetch("/api/upload", { method: "POST", body: formData });
+        const data = await res.json();
 
-    if (data.url) {
-        pendingImageUrl = data.url;
-        const textarea = document.getElementById("content");
-        textarea.value += "\n🖼 [Imagem pronta para envio]";
-        textarea.focus();
+        if (data.url) {
+            pendingImageUrl = data.url;
+            const textarea = document.getElementById("content");
+            textarea.value += (textarea.value.trim() ? "\n" : "") + "🖼 [Imagem pronta para envio]";
+            textarea.focus();
+            showOverlay("Imagem pronta para envio ✅", "success");
+        } else {
+            showOverlay("Falha no upload da imagem ❌", "error");
+        }
+    } catch {
+        showOverlay("Falha no upload da imagem ❌", "error");
     }
 }
 
@@ -440,16 +481,30 @@ function parseWhisper(text) {
     return { to: null, content: text };
 }
 
-/* MENSAGENS */
-async function loadMessages(options = {}) {
+/* PARSE COMANDOS DM */
+function parseCreateRoom(text) {
+    const match = text.match(/^\/c\s+@(\w+)\s+([A-Za-z0-9_-]{3,32})$/);
+    if (!match) return null;
+    return { target: match[1], room: match[2] };
+}
+function parseEnterRoom(text) {
+    const match = text.match(/^\/entrar\s+([A-Za-z0-9_-]{3,32})$/);
+    if (!match) return null;
+    return { room: match[1] };
+}
+function isLeaveCommand(text) {
+    return /^\/sair\s*$/.test(text);
+}
+
+/* MENSAGENS - PÚBLICO */
+async function loadPublicMessages(options = {}) {
     const { forceScrollBottom = false } = options;
 
     try {
         const res = await fetch('/api/messages');
         const data = await res.json();
 
-        /* 🔔 NOTIFICAÇÃO CORRIGIDA */
-        const visibleMessages = data.filter(msg => canUserSeeMessage(msg));
+        const visibleMessages = Array.isArray(data) ? data.filter(msg => canUserSeeMessage(msg)) : [];
 
         if (visibleMessages.length) {
             const lastVisible = visibleMessages[visibleMessages.length - 1];
@@ -471,10 +526,8 @@ async function loadMessages(options = {}) {
 
         box.innerHTML = '';
 
-        data.forEach(msg => {
+        visibleMessages.forEach(msg => {
             const isWhisper = msg.to !== null;
-            if (!canUserSeeMessage(msg)) return;
-
             const div = document.createElement('div');
             div.className = 'message' + (isWhisper ? ' whisper' : '');
 
@@ -507,7 +560,183 @@ async function loadMessages(options = {}) {
     }
 }
 
+/* MENSAGENS - DM */
+async function loadDmMessages(options = {}) {
+    const { forceScrollBottom = false } = options;
+    if (!currentRoom) return;
+
+    try {
+        const res = await fetch(`/api/dm/messages?room=${encodeURIComponent(currentRoom)}&name=${encodeURIComponent(loggedUser)}`);
+        const data = await res.json();
+        const msgs = Array.isArray(data) ? data : [];
+
+        const box = document.getElementById('messages');
+        const previousScrollTop = box.scrollTop;
+        const previousScrollHeight = box.scrollHeight;
+        const distanceFromBottom = previousScrollHeight - previousScrollTop - box.clientHeight;
+        const shouldAutoScroll = forceScrollBottom || distanceFromBottom < 80;
+
+        box.innerHTML = '';
+
+        msgs.forEach(m => {
+            const div = document.createElement('div');
+            div.className = 'message dm';
+
+            const date = new Date(m.created_at).toLocaleString('pt-BR');
+            const color = getColorFromName(m.sender);
+
+            const dmContentHTML = m.image_url
+              ? `<a href="${escapeHTML(m.image_url)}" target="_blank" style="color:#58a6ff">🖼 Imagem</a>` + (m.message ? `<div style="margin-top:6px;">${highlightMentions(m.message)}</div>` : "")
+              : highlightMentions(m.message || "");
+
+            div.innerHTML = `
+                <div class="message-header">
+                    <span class="username" style="color:${color}">${escapeHTML(m.sender)}</span>
+                    <span class="timestamp">${date}</span>
+                </div>
+                <div>${dmContentHTML}</div>
+            `;
+            box.appendChild(div);
+        });
+
+        if (shouldAutoScroll) {
+            box.scrollTop = box.scrollHeight;
+        } else {
+            const heightDiff = box.scrollHeight - previousScrollHeight;
+            box.scrollTop = previousScrollTop + heightDiff;
+        }
+    } catch (e) {
+        console.error("Erro ao carregar DM:", e);
+    }
+}
+
+async function loadMessages(options = {}) {
+    if (chatMode === "dm") return loadDmMessages(options);
+    return loadPublicMessages(options);
+}
+
+/* DM ACTIONS */
+async function createRoom(target, room) {
+    try {
+        const res = await fetch("/api/dm/create", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ creator: loggedUser, target, room })
+        });
+
+        const data = await res.json();
+
+        if (!res.ok || !data.success) {
+            if (res.status === 409) showOverlay(`Sala "${room}" já existe ❌`, "error");
+            else showOverlay(`Erro ao criar sala "${room}" ❌`, "error");
+            return;
+        }
+
+        showOverlay(`Sala "${room}" criada ✅`, "success");
+        showOverlay(`Notificação enviada para @${target}`, "info");
+    } catch {
+        showOverlay("Erro ao criar sala ❌", "error");
+    }
+}
+
+async function enterRoom(room) {
+    try {
+        const res = await fetch("/api/dm/enter", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ name: loggedUser, room })
+        });
+
+        const data = await res.json();
+
+        if (!res.ok || !data.success) {
+            showOverlay(`Erro ao entrar em "${room}" ❌`, "error");
+            return;
+        }
+
+        chatMode = "dm";
+        currentRoom = data.channel.room;
+        currentOther = data.channel.other;
+
+        setHeader();
+        await loadMessages({ forceScrollBottom: true });
+        showOverlay(`Entrou na sala "${currentRoom}" ✅`, "success");
+    } catch {
+        showOverlay("Erro ao entrar na sala ❌", "error");
+    }
+}
+
+async function leaveRoom() {
+    if (!currentRoom) {
+        showOverlay("Você não está em uma sala privada.", "info");
+        return;
+    }
+
+    try {
+        await fetch("/api/dm/leave", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ name: loggedUser, room: currentRoom })
+        });
+    } catch {}
+
+    const left = currentRoom;
+    chatMode = "public";
+    currentRoom = null;
+    currentOther = null;
+
+    setHeader();
+    await loadMessages({ forceScrollBottom: true });
+    showOverlay(`Saiu da sala "${left}" ✅`, "success");
+}
+
 /* ENVIO */
+async function sendPublicMessage(text) {
+    const contentInput = document.getElementById('content');
+    const { to, content } = parseWhisper(text);
+
+    await fetch('/api/messages', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+            name: loggedUser,
+            content: content || "🖼 Imagem",
+            image_url: pendingImageUrl,
+            to
+        })
+    });
+
+    contentInput.value = '';
+    pendingImageUrl = null;
+
+    await loadMessages({ forceScrollBottom: true });
+
+    if (to) showOverlay(`Sussurro enviado para @${to}`, "success");
+}
+
+async function sendDmMessage(text) {
+    const contentInput = document.getElementById('content');
+
+    await fetch("/api/dm/messages", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+            room: currentRoom,
+            sender: loggedUser,
+            message: text,
+            image_url: pendingImageUrl
+        })
+    });
+
+    contentInput.value = '';
+    pendingImageUrl = null;
+
+    await loadMessages({ forceScrollBottom: true });
+
+    // overlay opcional quando foi imagem
+    // if (pendingImageUrl) showOverlay("Imagem enviada ✅", "success");
+}
+
 async function sendMessage() {
     if (isSending) return;
 
@@ -515,9 +744,32 @@ async function sendMessage() {
     const sendButton = document.querySelector(".send-btn");
     const text = contentInput.value.trim();
 
-    if (!text && !pendingImageUrl) return;
+    // comandos sempre
+    const create = parseCreateRoom(text);
+    const enter = parseEnterRoom(text);
 
-    const { to, content } = parseWhisper(text);
+    if (create) {
+        contentInput.value = "";
+        showOverlay(`Criando sala "${create.room}"...`, "info");
+        await createRoom(create.target, create.room);
+        return;
+    }
+
+    if (enter) {
+        contentInput.value = "";
+        showOverlay(`Entrando em "${enter.room}"...`, "info");
+        await enterRoom(enter.room);
+        return;
+    }
+
+    if (isLeaveCommand(text)) {
+        contentInput.value = "";
+        await leaveRoom();
+        return;
+    }
+
+    // agora: permite enviar só imagem em DM também
+    if (!text && !pendingImageUrl) return;
 
     isSending = true;
     sendButton.disabled = true;
@@ -525,44 +777,20 @@ async function sendMessage() {
     sendButton.style.cursor = "not-allowed";
 
     try {
-        await fetch('/api/messages', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-                name: loggedUser,
-                content: content || "🖼 Imagem",
-                image_url: pendingImageUrl,
-                to
-            })
-        });
-
-        contentInput.value = '';
-        pendingImageUrl = null;
-        await loadMessages({ forceScrollBottom: true });
-
-        if (to) showOverlay(`Sussurro enviado para @${to}`, "success");
+        if (chatMode === "dm") {
+            await sendDmMessage(text);
+        } else {
+            await sendPublicMessage(text);
+        }
     } catch (e) {
-        console.error("Erro ao enviar mensagem:", e);
-        if (to) showOverlay(`Falha ao enviar sussurro para @${to}`, "error");
+        console.error("Erro ao enviar:", e);
+        showOverlay("Falha ao enviar mensagem ❌", "error");
     } finally {
         isSending = false;
         sendButton.disabled = false;
         sendButton.style.opacity = "1";
         sendButton.style.cursor = "pointer";
     }
-}
-
-/* OVERLAY */
-function showOverlay(msg, type = "info") {
-    const overlay = document.createElement("div");
-    overlay.className = `overlay ${type}`;
-    overlay.textContent = msg;
-    document.body.appendChild(overlay);
-
-    setTimeout(() => {
-        overlay.style.opacity = "0";
-        setTimeout(() => overlay.remove(), 400);
-    }, 2200);
 }
 
 /* ONLINE */
@@ -617,36 +845,17 @@ document.addEventListener("DOMContentLoaded", () => {
         }
     });
 
+    setHeader();
+
     loadMessages();
-    setInterval(loadMessages, 3000);
+    setInterval(() => loadMessages(), 3000);
+
     updateOnlineStatus();
     setInterval(updateOnlineStatus, 5000);
+
     loadOnlineUsers();
     setInterval(loadOnlineUsers, 5000);
 });
 </script>
 </body>
 </html>
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
