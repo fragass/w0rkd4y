@@ -1,521 +1,578 @@
+<!-- m3yxe8u27wpoovbz.html -->
 <!DOCTYPE html>
 <html lang="pt-BR">
 <head>
-    <link rel="icon" href="favicon.png" type="image/png">
-    <script>
-        if (!sessionStorage.getItem("token") || !sessionStorage.getItem("loggedUser")) {
-            window.location.href = "index.html";
-        }
-    </script>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Página inicial - Workday</title>
-<style>
-* { box-sizing: border-box; }
+  <link rel="icon" href="favicon.png" type="image/png">
+  <script>
+    if (!sessionStorage.getItem("token") || !sessionStorage.getItem("loggedUser")) {
+      window.location.href = "index.html";
+    }
+  </script>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Página inicial - Workday</title>
 
-html { 
-    scrollbar-width: thin; 
-    scrollbar-color: #2c2f36 #0b0f14; 
-}
-::-webkit-scrollbar { width: 8px; }
-::-webkit-scrollbar-track { background: #0b0f14; }
-::-webkit-scrollbar-thumb { background: #2c2f36; border-radius: 6px; }
-::-webkit-scrollbar-thumb:hover { background: #3a3d46; }
+  <style>
+    * { box-sizing: border-box; }
 
-.messages::-webkit-scrollbar { width: 8px; }
-.messages::-webkit-scrollbar-track { background: #10151c; }
-.messages::-webkit-scrollbar-thumb { background: #2c2f36; border-radius: 6px; }
-.messages::-webkit-scrollbar-thumb:hover { background: #3a3d46; }
+    html { scrollbar-width: thin; scrollbar-color: #2c2f36 #0b0f14; }
+    ::-webkit-scrollbar { width: 8px; }
+    ::-webkit-scrollbar-track { background: #0b0f14; }
+    ::-webkit-scrollbar-thumb { background: #2c2f36; border-radius: 6px; }
+    ::-webkit-scrollbar-thumb:hover { background: #3a3d46; }
 
-body {
-    margin: 0;
-    background: #0b0f14;
-    font-family: 'Segoe UI', Roboto, system-ui, -apple-system, sans-serif;
-    color: #e6edf3;
-    display: flex;
-    justify-content: center;
-    align-items: center;
-    height: 100vh;
-    padding: 10px;
-}
+    .messages::-webkit-scrollbar { width: 8px; }
+    .messages::-webkit-scrollbar-track { background: #10151c; }
+    .messages::-webkit-scrollbar-thumb { background: #2c2f36; border-radius: 6px; }
+    .messages::-webkit-scrollbar-thumb:hover { background: #3a3d46; }
 
-.online-box {
-    position: fixed;
-    top: 10px;
-    left: 10px;
-    background: #151a21;
-    border: 1px solid rgba(255,255,255,.08);
-    padding: 8px 12px;
-    border-radius: 10px;
-    font-size: 12px;
-    color: #b8bcc4;
-    box-shadow: 0 6px 18px rgba(0,0,0,.5);
-    z-index: 1000;
-}
+    body {
+      margin: 0;
+      background: #0b0f14;
+      font-family: 'Segoe UI', Roboto, system-ui, -apple-system, sans-serif;
+      color: #e6edf3;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      height: 100vh;
+      padding: 10px;
+    }
 
-.container {
-    width: 700px;
-    max-width: 100%;
-    height: 700px;
-    max-height: 90vh;
-    background: #151a21;
-    border-radius: 12px;
-    border: 1px solid rgba(255,255,255,.08);
-    display: flex;
-    flex-direction: column;
-    overflow: hidden;
-    box-shadow: 0 25px 60px rgba(0,0,0,.7);
-}
+    .online-box {
+      position: fixed;
+      top: 10px;
+      left: 10px;
+      background: #151a21;
+      border: 1px solid rgba(255,255,255,.08);
+      padding: 8px 12px;
+      border-radius: 10px;
+      font-size: 12px;
+      color: #b8bcc4;
+      box-shadow: 0 6px 18px rgba(0,0,0,.5);
+      z-index: 1000;
+    }
 
-.header {
-    padding: 16px;
-    font-size: 15px;
-    font-weight: 600;
-    border-bottom: 1px solid rgba(255,255,255,.08);
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-    color: #e6edf3;
-}
+    .container {
+      width: 700px;
+      max-width: 100%;
+      height: 700px;
+      max-height: 90vh;
+      background: #151a21;
+      border-radius: 12px;
+      border: 1px solid rgba(255,255,255,.08);
+      display: flex;
+      flex-direction: column;
+      overflow: hidden;
+      box-shadow: 0 25px 60px rgba(0,0,0,.7);
+    }
 
-.warning-text { color: #ffffff; }
+    .header {
+      padding: 16px;
+      font-size: 15px;
+      font-weight: 600;
+      border-bottom: 1px solid rgba(255,255,255,.08);
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      color: #e6edf3;
+    }
 
-.admin-link {
-    text-decoration: none;
-    font-size: 14px;
-    opacity: 0.8;
-    color: #b8bcc4;
-    transition: all 0.2s ease;
-}
-.admin-link:hover { opacity: 1; transform: scale(1.05); }
+    .header-left { display: flex; flex-direction: column; gap: 4px; }
+    .warning-text { color: #ffffff; }
 
-.messages {
-    flex: 1;
-    padding: 16px;
-    overflow-y: auto;
-    background: #10151c;
-}
+    #typingStatus {
+      font-size: 12px;
+      font-weight: 500;
+      color: #8b949e;
+      min-height: 14px;
+    }
 
-.message {
-    padding: 12px 14px;
-    border-radius: 10px;
-    margin-bottom: 10px;
-    background: #151a21;
-    border: 1px solid rgba(255,255,255,.08);
-    font-size: 13px;
-    transition: background 0.2s ease, transform 0.15s ease;
-}
-.message:hover { background: #1b2028; transform: translateY(-1px); }
+    .admin-link {
+      text-decoration: none;
+      font-size: 14px;
+      opacity: 0.8;
+      color: #b8bcc4;
+      transition: all 0.2s ease;
+    }
+    .admin-link:hover { opacity: 1; transform: scale(1.05); }
 
-.message-header {
-    display: flex;
-    justify-content: space-between;
-    margin-bottom: 4px;
-}
+    .messages {
+      flex: 1;
+      padding: 16px;
+      overflow-y: auto;
+      background: #10151c;
+    }
 
-.username { font-weight: 600; color: #ffffff; }
-.timestamp { font-size: 11px; color: #8b949e; }
+    .message {
+      padding: 12px 14px;
+      border-radius: 10px;
+      margin-bottom: 10px;
+      background: #151a21;
+      border: 1px solid rgba(255,255,255,.08);
+      font-size: 13px;
+      transition: background 0.2s ease, transform 0.15s ease;
+    }
+    .message:hover { background: #1b2028; transform: translateY(-1px); }
 
-.form {
-    padding: 14px;
-    border-top: 1px solid rgba(255,255,255,.08);
-    display: flex;
-    gap: 8px;
-    align-items: center;
-    position: relative;
-}
+    .message-header { display: flex; justify-content: space-between; margin-bottom: 4px; }
+    .username { font-weight: 600; color: #ffffff; }
+    .timestamp { font-size: 11px; color: #8b949e; }
 
-textarea {
-    flex: 1;
-    resize: none;
-    height: 45px;
-    padding: 10px;
-    border-radius: 10px;
-    border: 1px solid #3a3d46;
-    background: #10151c;
-    color: #e6edf3;
-    font-size: 13px;
-    outline: none;
-    transition: border 0.2s ease, box-shadow 0.2s ease;
-}
-textarea:focus { border-color: #3a3d46; box-shadow: 0 0 0 2px rgba(255,255,255,.12); }
+    .form {
+      padding: 14px;
+      border-top: 1px solid rgba(255,255,255,.08);
+      display: flex;
+      gap: 8px;
+      align-items: center;
+      position: relative;
+    }
 
-button.send-btn {
-    padding: 0 18px;
-    height: 45px;
-    border-radius: 10px;
-    border: 1px solid rgba(255,255,255,.12);
-    background: #10151c;
-    color: #ffffff;
-    font-weight: 500;
-    cursor: pointer;
-    transition: all 0.2s ease;
-}
-button.send-btn:hover { background: #151a21; transform: translateY(-1px); }
+    textarea {
+      flex: 1;
+      resize: none;
+      height: 45px;
+      padding: 10px;
+      border-radius: 10px;
+      border: 1px solid #3a3d46;
+      background: #10151c;
+      color: #e6edf3;
+      font-size: 13px;
+      outline: none;
+      transition: border 0.2s ease, box-shadow 0.2s ease;
+    }
+    textarea:focus { border-color: #3a3d46; box-shadow: 0 0 0 2px rgba(255,255,255,.12); }
 
-/* EMOJI */
-.emoji-toggle {
-    cursor: pointer;
-    font-size: 20px;
-    opacity: 0.75;
-    transition: all 0.2s ease;
-}
-.emoji-toggle:hover { opacity: 1; transform: scale(1.15); }
+    button.send-btn {
+      padding: 0 18px;
+      height: 45px;
+      border-radius: 10px;
+      border: 1px solid rgba(255,255,255,.12);
+      background: #10151c;
+      color: #ffffff;
+      font-weight: 500;
+      cursor: pointer;
+      transition: all 0.2s ease;
+    }
+    button.send-btn:hover { background: #151a21; transform: translateY(-1px); }
 
-.emoji-panel {
-    position: absolute;
-    bottom: 65px;
-    right: 90px;
-    width: 260px;
-    max-height: 200px;
-    overflow-y: auto;
-    background: #151a21;
-    border: 1px solid rgba(255,255,255,.08);
-    border-radius: 12px;
-    padding: 12px;
-    display: none;
-    flex-wrap: wrap;
-    gap: 6px;
-}
-.emoji-panel span { cursor: pointer; font-size: 20px; transition: transform 0.1s ease; }
-.emoji-panel span:hover { transform: scale(1.3); }
+    .emoji-toggle { cursor: pointer; font-size: 20px; opacity: 0.75; transition: all 0.2s ease; }
+    .emoji-toggle:hover { opacity: 1; transform: scale(1.15); }
 
-#mini-profile {
-    position: fixed;
-    top: 10px;
-    right: 10px;
-    background: rgba(21,26,33,0.95);
-    color: #ffffff;
-    font-family: Arial, sans-serif;
-    font-size: 14px;
-    padding: 6px 12px;
-    border-radius: 12px;
-    box-shadow: 0 6px 18px rgba(0,0,0,.5);
-    z-index: 1000;
-    display: flex;
-    align-items: center;
-    gap: 8px;
-    cursor: pointer;
-    user-select: none;
-}
-#mini-profile span { font-weight: bold; color: #fff; }
+    .emoji-panel {
+      position: absolute;
+      bottom: 65px;
+      right: 90px;
+      width: 260px;
+      max-height: 200px;
+      overflow-y: auto;
+      background: #151a21;
+      border: 1px solid rgba(255,255,255,.08);
+      border-radius: 12px;
+      padding: 12px;
+      display: none;
+      flex-wrap: wrap;
+      gap: 6px;
+    }
+    .emoji-panel span { cursor: pointer; font-size: 20px; transition: transform 0.1s ease; }
+    .emoji-panel span:hover { transform: scale(1.3); }
 
-#arrow { transition: transform 0.3s ease; margin-left: 4px; }
+    #mini-profile {
+      position: fixed;
+      top: 10px;
+      right: 10px;
+      background: rgba(21,26,33,0.95);
+      color: #ffffff;
+      font-family: Arial, sans-serif;
+      font-size: 14px;
+      padding: 6px 12px;
+      border-radius: 12px;
+      box-shadow: 0 6px 18px rgba(0,0,0,.5);
+      z-index: 1000;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      cursor: pointer;
+      user-select: none;
+    }
+    #mini-profile span { font-weight: bold; color: #fff; }
 
-#dropdown-menu {
-    display: none;
-    position: absolute;
-    top: 40px;
-    right: 0;
-    background: rgba(21,26,33,0.95);
-    border-radius: 10px;
-    box-shadow: 0 6px 18px rgba(0,0,0,.6);
-    padding: 8px 12px;
-    z-index: 1000;
-}
-#dropdown-menu button {
-    background: #10151c;
-    color: #ffffff;
-    border: 1px solid rgba(255,255,255,.12);
-    border-radius: 10px;
-    padding: 6px 12px;
-    cursor: pointer;
-    font-size: 14px;
-    width: 100%;
-    transition: all 0.2s ease;
-}
-#dropdown-menu button:hover { background: #151a21; transform: translateY(-1px); }
+    #arrow { transition: transform 0.3s ease; margin-left: 4px; }
 
-.online-header { display: flex; align-items: center; gap: 8px; }
-.online-dot {
-    width: 10px;
-    height: 10px;
-    background: #3fb950;
-    border-radius: 50%;
-    animation: pulse 1.5s infinite;
-}
-@keyframes pulse {
-    0% { box-shadow: 0 0 0 0 rgba(63,185,80,0.6); }
-    70% { box-shadow: 0 0 0 8px rgba(63,185,80,0); }
-    100% { box-shadow: 0 0 0 0 rgba(63,185,80,0); }
-}
+    #dropdown-menu {
+      display: none;
+      position: absolute;
+      top: 40px;
+      right: 0;
+      background: rgba(21,26,33,0.95);
+      border-radius: 10px;
+      box-shadow: 0 6px 18px rgba(0,0,0,.6);
+      padding: 8px 12px;
+      z-index: 1000;
+    }
+    #dropdown-menu button {
+      background: #10151c;
+      color: #ffffff;
+      border: 1px solid rgba(255,255,255,.12);
+      border-radius: 10px;
+      padding: 6px 12px;
+      cursor: pointer;
+      font-size: 14px;
+      width: 100%;
+      transition: all 0.2s ease;
+    }
+    #dropdown-menu button:hover { background: #151a21; transform: translateY(-1px); }
 
-.mention { color: #ffffff; background: #2c2f36; font-weight: 700; padding: 2px 6px; border-radius: 6px; }
-.mention-self { color: #1f2937; background: #e5e7eb; font-weight: 700; padding: 2px 6px; border-radius: 6px; }
+    .online-header { display: flex; align-items: center; gap: 8px; }
+    .online-dot { width: 10px; height: 10px; background: #3fb950; border-radius: 50%; animation: pulse 1.5s infinite; }
+    @keyframes pulse {
+      0% { box-shadow: 0 0 0 0 rgba(63,185,80,0.6); }
+      70% { box-shadow: 0 0 0 8px rgba(63,185,80,0); }
+      100% { box-shadow: 0 0 0 0 rgba(63,185,80,0); }
+    }
 
-/* SUSSURRO */
-.message.whisper {
-    background: #2a2538;
-    border: 1px solid #6f42c1;
-    color: #e5def5;
-    font-style: italic;
-    box-shadow: 0 0 0 1px rgba(111,66,193,0.15);
-}
-.message.whisper:hover { background: #332d46; }
+    .mention { color: #ffffff; background: #2c2f36; font-weight: 700; padding: 2px 6px; border-radius: 6px; }
+    .mention-self { color: #1f2937; background: #e5e7eb; font-weight: 700; padding: 2px 6px; border-radius: 6px; }
 
-/* DM */
-.message.dm {
-    background: #0f1a13;
-    border: 1px solid rgba(63,185,80,0.35);
-    color: #d7ffe6;
-}
-.message.dm:hover { background: #14261b; }
+    .message.whisper {
+      background: #2a2538;
+      border: 1px solid #6f42c1;
+      color: #e5def5;
+      font-style: italic;
+      box-shadow: 0 0 0 1px rgba(111,66,193,0.15);
+    }
+    .message.whisper:hover { background: #332d46; }
 
-/* Overlay */
-.overlay {
-    position: fixed;
-    bottom: 20px;
-    right: 20px;
-    background: #10151c;
-    color: #ffffff;
-    padding: 14px 18px;
-    border-radius: 12px;
-    font-size: 14px;
-    box-shadow: 0 10px 30px rgba(0,0,0,.6);
-    z-index: 9999;
-    transition: opacity 0.4s ease, transform 0.3s ease;
-}
-.overlay.success { background: #151a21; color: #ffffff; }
-.overlay.error { background: #da3633; }
-.overlay.info { background: #2c2c2c; }
+    .message.dm {
+      background: #0f1a13;
+      border: 1px solid rgba(63,185,80,0.35);
+      color: #d7ffe6;
+    }
+    .message.dm:hover { background: #14261b; }
 
-/* RESPONSIVO */
-@media (max-width: 992px) {
-    .container { width: 90%; height: 80vh; }
-    .emoji-panel { right: 20px; bottom: 80px; width: 240px; }
-}
+    .overlay {
+      position: fixed;
+      bottom: 20px;
+      right: 20px;
+      background: #10151c;
+      color: #ffffff;
+      padding: 14px 18px;
+      border-radius: 12px;
+      font-size: 14px;
+      box-shadow: 0 10px 30px rgba(0,0,0,.6);
+      z-index: 9999;
+      transition: opacity 0.4s ease, transform 0.3s ease;
+    }
+    .overlay.success { background: #151a21; color: #ffffff; }
+    .overlay.error { background: #da3633; }
+    .overlay.info { background: #2c2c2c; }
 
-@media (max-width: 768px) {
-    .container { height: 75vh; }
-    .form { flex-direction: column; align-items: stretch; gap: 6px; }
-    textarea { height: 60px; font-size: 14px; }
-    button.send-btn { width: 100%; }
-    .emoji-panel { width: 90%; right: 5%; bottom: 80px; }
-    .header { flex-direction: column; align-items: flex-start; gap: 6px; }
-}
-
-@media (max-width: 480px) {
-    body { padding: 5px; }
-    .container { height: 85vh; }
-    #mini-profile { font-size: 13px; padding: 4px 10px; top: 5px; right: 5px; }
-    .online-box { font-size: 11px; padding: 6px 10px; top: 5px; left: 5px; }
-    .warning-text { font-size: 12px; text-align: center; }
-    .messages { padding: 10px; }
-    textarea { height: 55px; font-size: 13px; }
-}
-</style>
+    @media (max-width: 992px) {
+      .container { width: 90%; height: 80vh; }
+      .emoji-panel { right: 20px; bottom: 80px; width: 240px; }
+    }
+    @media (max-width: 768px) {
+      .container { height: 75vh; }
+      .form { flex-direction: column; align-items: stretch; gap: 6px; }
+      textarea { height: 60px; font-size: 14px; }
+      button.send-btn { width: 100%; }
+      .emoji-panel { width: 90%; right: 5%; bottom: 80px; }
+      .header { flex-direction: column; align-items: flex-start; gap: 6px; }
+    }
+    @media (max-width: 480px) {
+      body { padding: 5px; }
+      .container { height: 85vh; }
+      #mini-profile { font-size: 13px; padding: 4px 10px; top: 5px; right: 5px; }
+      .online-box { font-size: 11px; padding: 6px 10px; top: 5px; left: 5px; }
+      .warning-text { font-size: 12px; text-align: center; }
+      .messages { padding: 10px; }
+      textarea { height: 55px; font-size: 13px; }
+    }
+  </style>
 </head>
+
 <body>
-    <div class="side-panel right-panel"></div>
+  <div id="mini-profile">
+    <span id="user-phone"></span>
+    <svg id="arrow" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+      <polyline points="6 9 12 15 18 9"></polyline>
+    </svg>
+  </div>
 
-    <div id="mini-profile">
-        <span id="user-phone"></span>
-        <svg id="arrow" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-            <polyline points="6 9 12 15 18 9"></polyline>
-        </svg>
+  <div id="dropdown-menu">
+    <button id="logout">Sair</button>
+  </div>
+
+  <audio id="messageSound" src="message.mp3" preload="auto"></audio>
+
+  <div class="online-box">
+    <div class="online-header">
+      <div class="online-dot"></div>
+      <span id="onlineUsers">0</span>
+    </div>
+  </div>
+
+  <div class="container">
+    <div class="header">
+      <div class="header-left">
+        <span class="warning-text" id="headerTitle">Mensagens com 24 horas de envio serão apagadas todos os dias à meia-noite.</span>
+        <span id="typingStatus"></span>
+      </div>
+      <a href="https://6bh1xntg0kegg8kp.vercel.app/" class="admin-link">🔒</a>
     </div>
 
-    <div id="dropdown-menu">
-        <button id="logout">Sair</button>
+    <div class="messages" id="messages"></div>
+
+    <div class="form">
+      <textarea id="content" placeholder="Escreva uma mensagem... (use CTRL + V para enviar imagens)"></textarea>
+      <span class="emoji-toggle" onclick="toggleEmojis()">🙂</span>
+      <button class="send-btn" onclick="sendMessage()">Enviar</button>
+      <div class="emoji-panel" id="emojiPanel"></div>
     </div>
+  </div>
 
-    <audio id="messageSound" src="message.mp3" preload="auto"></audio>
+  <script>
+    const loggedUser = sessionStorage.getItem("loggedUser");
+    let lastMessageId = null;
+    let pendingImageUrl = null;
+    let isSending = false;
 
-    <div class="online-box">
-        <div class="online-header">
-            <div class="online-dot"></div>
-            <span id="onlineUsers">0</span>
-        </div>
-    </div>
+    let chatMode = "public";
+    let currentRoom = null;
+    let currentOther = null;
 
-    <div class="container">
-        <div class="header">
-            <span class="warning-text" id="headerTitle">Mensagens com 24 horas de envio serão apagadas todos os dias à meia-noite.</span>
-            <a href="https://6bh1xntg0kegg8kp.vercel.app/" class="admin-link">🔒</a>
-        </div>
-        <div class="messages" id="messages"></div>
-        <div class="form">
-            <textarea id="content" placeholder="Escreva uma mensagem... (use CTRL + V para enviar imagens)"></textarea>
-            <span class="emoji-toggle" onclick="toggleEmojis()">🙂</span>
-            <button class="send-btn" onclick="sendMessage()">Enviar</button>
-            <div class="emoji-panel" id="emojiPanel"></div>
-        </div>
-    </div>
+    let typingDebounceTimer = null;
+    let lastTypingSentAt = 0;
 
-<script>
-const loggedUser = sessionStorage.getItem("loggedUser");
-let lastMessageId = null;
-let pendingImageUrl = null;
-let isSending = false;
+    const userColors = ["#58a6ff","#2ea043","#f0883e","#a371f7","#ff7b72","#1f6feb","#3fb950","#d29922","#bc8cff","#ffa657"];
 
-let chatMode = "public"; // "public" | "dm"
-let currentRoom = null;
-let currentOther = null;
+    function getColorFromName(name) {
+      let hash = 0;
+      for (let i = 0; i < name.length; i++) hash = name.charCodeAt(i) + ((hash << 5) - hash);
+      return userColors[Math.abs(hash) % userColors.length];
+    }
 
-const userColors = ["#58a6ff","#2ea043","#f0883e","#a371f7","#ff7b72","#1f6feb","#3fb950","#d29922","#bc8cff","#ffa657"];
-
-/* UTILIDADES */
-function getColorFromName(name) {
-    let hash = 0;
-    for (let i = 0; i < name.length; i++) hash = name.charCodeAt(i) + ((hash << 5) - hash);
-    return userColors[Math.abs(hash) % userColors.length];
-}
-
-function escapeHTML(str) {
-    return String(str || "").replace(/[&<>"']/g, match => ({
+    function escapeHTML(str) {
+      return String(str || "").replace(/[&<>"']/g, match => ({
         "&":"&amp;","<":"&lt;",">":"&gt;","\"":"&quot;","'":"&#039;"
-    }[match]));
-}
+      }[match]));
+    }
 
-function highlightMentions(text) {
-    const escaped = escapeHTML(text);
-    return escaped.replace(/@(\w+)/g, (match, username) => {
+    function highlightMentions(text) {
+      const escaped = escapeHTML(text);
+      return escaped.replace(/@(\w+)/g, (match, username) => {
         if (username === loggedUser) return `<span class="mention-self">@${username}</span>`;
         return `<span class="mention">@${username}</span>`;
-    });
-}
+      });
+    }
 
-/* VISIBILIDADE DE MENSAGEM (SUSSURRO) */
-function canUserSeeMessage(msg) {
-    if (!msg.to) return true;
-    return msg.to === loggedUser || msg.name === loggedUser;
-}
+    function canUserSeeMessage(msg) {
+      if (!msg.to) return true;
+      return msg.to === loggedUser || msg.name === loggedUser;
+    }
 
-/* OVERLAY */
-function showOverlay(msg, type = "info") {
-    const overlay = document.createElement("div");
-    overlay.className = `overlay ${type}`;
-    overlay.textContent = msg;
-    document.body.appendChild(overlay);
+    function showOverlay(msg, type = "info") {
+      const overlay = document.createElement("div");
+      overlay.className = `overlay ${type}`;
+      overlay.textContent = msg;
+      document.body.appendChild(overlay);
 
-    setTimeout(() => {
+      setTimeout(() => {
         overlay.style.opacity = "0";
         setTimeout(() => overlay.remove(), 400);
-    }, 2200);
-}
-
-function setHeader() {
-    const el = document.getElementById("headerTitle");
-    if (chatMode === "dm" && currentRoom) {
-        el.textContent = `🔐 Sala privada: ${currentRoom} (com @${currentOther}) — use /sair para voltar ao público`;
-    } else {
-        el.textContent = "Mensagens com 24 horas de envio serão apagadas todos os dias à meia-noite.";
+      }, 2200);
     }
-}
 
-/* EMOJIS */
-function toggleEmojis() {
-    const panel = document.getElementById("emojiPanel");
-    panel.style.display = panel.style.display === "flex" ? "none" : "flex";
-}
+    function setHeader() {
+      const el = document.getElementById("headerTitle");
+      if (chatMode === "dm" && currentRoom) {
+        el.textContent = `🔐 Sala privada: ${currentRoom} (com @${currentOther}) — use /sair para voltar ao público`;
+      } else {
+        el.textContent = "Mensagens com 24 horas de envio serão apagadas todos os dias à meia-noite.";
+      }
+    }
 
-const emojis = ["😀","😁","😂","🤣","😃","😄","😅","😆","😉","😊","😍","🥰","😘","😎","🤔","😢","😭","😡","🔥","👍","👎","👏","🙌","💪","🎉","❤️","💔","💯","✔️","⚡"];
-function loadEmojis() {
-    const panel = document.getElementById("emojiPanel");
-    panel.innerHTML = "";
-    emojis.forEach(emoji => {
+    function toggleEmojis() {
+      const panel = document.getElementById("emojiPanel");
+      panel.style.display = panel.style.display === "flex" ? "none" : "flex";
+    }
+
+    const emojis = ["😀","😁","😂","🤣","😃","😄","😅","😆","😉","😊","😍","🥰","😘","😎","🤔","😢","😭","😡","🔥","👍","👎","👏","🙌","💪","🎉","❤️","💔","💯","✔️","⚡"];
+    function loadEmojis() {
+      const panel = document.getElementById("emojiPanel");
+      panel.innerHTML = "";
+      emojis.forEach(emoji => {
         const span = document.createElement("span");
         span.textContent = emoji;
         span.onclick = () => {
-            const textarea = document.getElementById("content");
-            textarea.value += emoji;
-            textarea.focus();
+          const textarea = document.getElementById("content");
+          textarea.value += emoji;
+          textarea.focus();
+          onUserTyping();
         };
         panel.appendChild(span);
-    });
-}
-loadEmojis();
+      });
+    }
+    loadEmojis();
 
-/* PASTE DE IMAGEM (AGORA TAMBÉM EM DM) */
-document.addEventListener("DOMContentLoaded", () => {
-    const contentInput = document.getElementById("content");
-    if (!contentInput) return;
+    document.addEventListener("DOMContentLoaded", () => {
+      const contentInput = document.getElementById("content");
+      if (!contentInput) return;
 
-    contentInput.addEventListener("paste", async (event) => {
+      contentInput.addEventListener("paste", async (event) => {
         const items = event.clipboardData?.items;
         if (!items) return;
 
         for (let item of items) {
-            if (item.type && item.type.includes("image")) {
-                const file = item.getAsFile();
-                if (file) {
-                    event.preventDefault();
-                    await uploadImage(file);
-                }
+          if (item.type && item.type.includes("image")) {
+            const file = item.getAsFile();
+            if (file) {
+              event.preventDefault();
+              await uploadImage(file);
             }
+          }
         }
+      });
     });
-});
 
-/* UPLOAD DE IMAGEM */
-async function uploadImage(file) {
-    const fileName = `${Date.now()}-${file.name}`;
-    const formData = new FormData();
-    formData.append("file", file);
-    formData.append("fileName", fileName);
+    async function uploadImage(file) {
+      const fileName = `${Date.now()}-${file.name}`;
+      const formData = new FormData();
+      formData.append("file", file);
+      formData.append("fileName", fileName);
 
-    try {
+      try {
         const res = await fetch("/api/upload", { method: "POST", body: formData });
         const data = await res.json();
 
         if (data.url) {
-            pendingImageUrl = data.url;
-            const textarea = document.getElementById("content");
-            textarea.value += (textarea.value.trim() ? "\n" : "") + "🖼 [Imagem pronta para envio]";
-            textarea.focus();
-            showOverlay("Imagem pronta para envio ✅", "success");
+          pendingImageUrl = data.url;
+          const textarea = document.getElementById("content");
+          textarea.value += (textarea.value.trim() ? "\n" : "") + "🖼 [Imagem pronta para envio]";
+          textarea.focus();
+          showOverlay("Imagem pronta para envio ✅", "success");
+          onUserTyping();
         } else {
-            showOverlay("Falha no upload da imagem ❌", "error");
+          showOverlay("Falha no upload da imagem ❌", "error");
         }
-    } catch {
+      } catch {
         showOverlay("Falha no upload da imagem ❌", "error");
+      }
     }
-}
 
-/* PARSE SUSSURRO */
-function parseWhisper(text) {
-    if (text.startsWith("/s ")) {
+    function parseWhisper(text) {
+      if (text.startsWith("/s ")) {
         const match = text.match(/^\/s\s+@(\w+)\s+(.+)$/);
         if (match) return { to: match[1], content: match[2] };
+      }
+      return { to: null, content: text };
     }
-    return { to: null, content: text };
-}
 
-/* PARSE COMANDOS DM */
-function parseCreateRoom(text) {
-    const match = text.match(/^\/c\s+@(\w+)\s+([A-Za-z0-9_-]{3,32})$/);
-    if (!match) return null;
-    return { target: match[1], room: match[2] };
-}
-function parseEnterRoom(text) {
-    const match = text.match(/^\/entrar\s+([A-Za-z0-9_-]{3,32})$/);
-    if (!match) return null;
-    return { room: match[1] };
-}
-function isLeaveCommand(text) {
-    return /^\/sair\s*$/.test(text);
-}
+    function parseCreateRoom(text) {
+      const match = text.match(/^\/c\s+@(\w+)\s+([A-Za-z0-9_-]{3,32})$/);
+      if (!match) return null;
+      return { target: match[1], room: match[2] };
+    }
+    function parseEnterRoom(text) {
+      const match = text.match(/^\/entrar\s+([A-Za-z0-9_-]{3,32})$/);
+      if (!match) return null;
+      return { room: match[1] };
+    }
+    function isLeaveCommand(text) {
+      return /^\/sair\s*$/.test(text);
+    }
 
-/* MENSAGENS - PÚBLICO */
-async function loadPublicMessages(options = {}) {
-    const { forceScrollBottom = false } = options;
+    async function sendTyping(isTyping) {
+      if (!loggedUser) return;
 
-    try {
+      const now = Date.now();
+      if (isTyping && now - lastTypingSentAt < 800) return;
+      lastTypingSentAt = now;
+
+      const room = (chatMode === "dm" && currentRoom) ? currentRoom : null;
+
+      try {
+        await fetch("/api/online", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ name: loggedUser, typing: !!isTyping, room })
+        });
+      } catch {}
+    }
+
+    function onUserTyping() {
+      const input = document.getElementById("content");
+      const hasText = input && input.value.trim().length > 0;
+      const isFocused = document.activeElement === input;
+
+      if (hasText && isFocused) {
+        clearTimeout(typingDebounceTimer);
+        typingDebounceTimer = setTimeout(() => sendTyping(true), 120);
+        return;
+      }
+
+      sendTyping(false);
+    }
+
+    function clearTypingUI() {
+      const el = document.getElementById("typingStatus");
+      if (el) el.textContent = "";
+    }
+
+    function setTypingUI(names) {
+      const el = document.getElementById("typingStatus");
+      if (!el) return;
+
+      if (!names || !names.length) { el.textContent = ""; return; }
+      if (names.length === 1) { el.textContent = `${names[0]} está digitando...`; return; }
+      if (names.length === 2) { el.textContent = `${names[0]} e ${names[1]} estão digitando...`; return; }
+      el.textContent = `${names.slice(0, 3).join(", ")} estão digitando...`;
+    }
+
+    async function loadTypingStatus() {
+      try {
+        const res = await fetch("/api/online");
+        const data = await res.json();
+        const users = Array.isArray(data) ? data : [];
+        const now = Date.now();
+
+        const typingUsers = users.filter(u => {
+          if (!u || !u.name) return false;
+          if (u.name === loggedUser) return false;
+          if (!u.typing) return false;
+          if (!u.last_typing) return false;
+
+          const last = new Date(u.last_typing).getTime();
+          if (now - last > 7000) return false;
+
+          if (chatMode === "dm" && currentRoom) return u.typing_room === currentRoom;
+          return !u.typing_room;
+        });
+
+        setTypingUI(typingUsers.map(u => u.name));
+      } catch {
+        clearTypingUI();
+      }
+    }
+
+    async function loadPublicMessages(options = {}) {
+      const { forceScrollBottom = false } = options;
+
+      try {
         const res = await fetch('/api/messages');
         const data = await res.json();
 
         const visibleMessages = Array.isArray(data) ? data.filter(msg => canUserSeeMessage(msg)) : [];
 
         if (visibleMessages.length) {
-            const lastVisible = visibleMessages[visibleMessages.length - 1];
+          const lastVisible = visibleMessages[visibleMessages.length - 1];
 
-            if (lastMessageId && lastVisible.id !== lastMessageId) {
-                const mentioned = lastVisible.content?.includes("@" + loggedUser);
-                if (lastVisible.name !== loggedUser || mentioned) {
-                    document.getElementById("messageSound").play();
-                }
+          if (lastMessageId && lastVisible.id !== lastMessageId) {
+            const mentioned = lastVisible.content?.includes("@" + loggedUser);
+            if (lastVisible.name !== loggedUser || mentioned) {
+              document.getElementById("messageSound").play();
             }
-            lastMessageId = lastVisible.id;
+          }
+          lastMessageId = lastVisible.id;
         }
 
         const box = document.getElementById('messages');
@@ -527,45 +584,43 @@ async function loadPublicMessages(options = {}) {
         box.innerHTML = '';
 
         visibleMessages.forEach(msg => {
-            const isWhisper = msg.to !== null;
-            const div = document.createElement('div');
-            div.className = 'message' + (isWhisper ? ' whisper' : '');
+          const isWhisper = msg.to !== null;
+          const div = document.createElement('div');
+          div.className = 'message' + (isWhisper ? ' whisper' : '');
 
-            const date = new Date(msg.created_at).toLocaleString('pt-BR');
-            const color = getColorFromName(msg.name);
+          const date = new Date(msg.created_at).toLocaleString('pt-BR');
+          const color = getColorFromName(msg.name);
 
-            const contentHTML = msg.image_url
-                ? `<a href="${msg.image_url}" target="_blank" style="color:#58a6ff">🖼 Imagem</a>`
-                : highlightMentions(msg.content);
+          const contentHTML = msg.image_url
+            ? `<a href="${escapeHTML(msg.image_url)}" target="_blank" style="color:#58a6ff">🖼 Imagem</a>`
+            : highlightMentions(msg.content);
 
-            div.innerHTML = `
-                <div class="message-header">
-                    <span class="username" style="color:${color}">${escapeHTML(msg.name)}</span>
-                    <span class="timestamp">${date}</span>
-                </div>
-                <div>${isWhisper ? `<strong>Sussurro:</strong> ${contentHTML}` : contentHTML}</div>
-            `;
+          div.innerHTML = `
+            <div class="message-header">
+              <span class="username" style="color:${color}">${escapeHTML(msg.name)}</span>
+              <span class="timestamp">${date}</span>
+            </div>
+            <div>${isWhisper ? `<strong>Sussurro:</strong> ${contentHTML}` : contentHTML}</div>
+          `;
 
-            box.appendChild(div);
+          box.appendChild(div);
         });
 
-        if (shouldAutoScroll) {
-            box.scrollTop = box.scrollHeight;
-        } else {
-            const heightDiff = box.scrollHeight - previousScrollHeight;
-            box.scrollTop = previousScrollTop + heightDiff;
+        if (shouldAutoScroll) box.scrollTop = box.scrollHeight;
+        else {
+          const heightDiff = box.scrollHeight - previousScrollHeight;
+          box.scrollTop = previousScrollTop + heightDiff;
         }
-    } catch (e) {
+      } catch (e) {
         console.error("Erro ao carregar mensagens:", e);
+      }
     }
-}
 
-/* MENSAGENS - DM */
-async function loadDmMessages(options = {}) {
-    const { forceScrollBottom = false } = options;
-    if (!currentRoom) return;
+    async function loadDmMessages(options = {}) {
+      const { forceScrollBottom = false } = options;
+      if (!currentRoom) return;
 
-    try {
+      try {
         const res = await fetch(`/api/dm/messages?room=${encodeURIComponent(currentRoom)}&name=${encodeURIComponent(loggedUser)}`);
         const data = await res.json();
         const msgs = Array.isArray(data) ? data : [];
@@ -579,79 +634,100 @@ async function loadDmMessages(options = {}) {
         box.innerHTML = '';
 
         msgs.forEach(m => {
-            const div = document.createElement('div');
-            div.className = 'message dm';
+          const div = document.createElement('div');
+          div.className = 'message dm';
 
-            const date = new Date(m.created_at).toLocaleString('pt-BR');
-            const color = getColorFromName(m.sender);
+          const date = new Date(m.created_at).toLocaleString('pt-BR');
+          const color = getColorFromName(m.sender);
 
-            const dmContentHTML = m.image_url
-              ? `<a href="${escapeHTML(m.image_url)}" target="_blank" style="color:#58a6ff">🖼 Imagem</a>` + (m.message ? `<div style="margin-top:6px;">${highlightMentions(m.message)}</div>` : "")
-              : highlightMentions(m.message || "");
+          const dmContentHTML = m.image_url
+            ? `<a href="${escapeHTML(m.image_url)}" target="_blank" style="color:#58a6ff">🖼 Imagem</a>` + (m.message ? `<div style="margin-top:6px;">${highlightMentions(m.message)}</div>` : "")
+            : highlightMentions(m.message || "");
 
-            div.innerHTML = `
-                <div class="message-header">
-                    <span class="username" style="color:${color}">${escapeHTML(m.sender)}</span>
-                    <span class="timestamp">${date}</span>
-                </div>
-                <div>${dmContentHTML}</div>
-            `;
-            box.appendChild(div);
+          div.innerHTML = `
+            <div class="message-header">
+              <span class="username" style="color:${color}">${escapeHTML(m.sender)}</span>
+              <span class="timestamp">${date}</span>
+            </div>
+            <div>${dmContentHTML}</div>
+          `;
+          box.appendChild(div);
         });
 
-        if (shouldAutoScroll) {
-            box.scrollTop = box.scrollHeight;
-        } else {
-            const heightDiff = box.scrollHeight - previousScrollHeight;
-            box.scrollTop = previousScrollTop + heightDiff;
+        if (shouldAutoScroll) box.scrollTop = box.scrollHeight;
+        else {
+          const heightDiff = box.scrollHeight - previousScrollHeight;
+          box.scrollTop = previousScrollTop + heightDiff;
         }
-    } catch (e) {
+      } catch (e) {
         console.error("Erro ao carregar DM:", e);
+      }
     }
-}
 
-async function loadMessages(options = {}) {
-    if (chatMode === "dm") return loadDmMessages(options);
-    return loadPublicMessages(options);
-}
+    async function loadMessages(options = {}) {
+      if (chatMode === "dm") return loadDmMessages(options);
+      return loadPublicMessages(options);
+    }
 
-/* DM ACTIONS */
-async function createRoom(target, room) {
-    try {
+    async function createRoom(target, room) {
+      // ✅ bloqueia /c @seu_proprio_nome ...
+      if (target === loggedUser) {
+        showOverlay("Você precisa marcar OUTRO usuário para criar uma sala. Ex: /c @fulano sala123", "error");
+        return;
+      }
+
+      try {
         const res = await fetch("/api/dm/create", {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ creator: loggedUser, target, room })
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            creator: loggedUser,
+            target,
+            room,
+
+            // compat extra
+            name: loggedUser,
+            user1: loggedUser,
+            user2: target,
+            to: target
+          })
         });
 
-        const data = await res.json();
+        const data = await res.json().catch(() => null);
 
-        if (!res.ok || !data.success) {
-            if (res.status === 409) showOverlay(`Sala "${room}" já existe ❌`, "error");
-            else showOverlay(`Erro ao criar sala "${room}" ❌`, "error");
-            return;
+        if (!res.ok || !data) {
+          showOverlay("Erro ao criar/abrir sala ❌", "error");
+          return;
         }
 
-        showOverlay(`Sala "${room}" criada ✅`, "success");
-        showOverlay(`Notificação enviada para @${target}`, "info");
-    } catch {
-        showOverlay("Erro ao criar sala ❌", "error");
-    }
-}
+        if (!data.success) {
+          showOverlay(data.error || "Erro ao criar/abrir sala ❌", "error");
+          return;
+        }
 
-async function enterRoom(room) {
-    try {
+        if (data.message) showOverlay(data.message, data.reused ? "info" : "success");
+
+        const roomToEnter = data.room || room;
+        await enterRoom(roomToEnter);
+
+      } catch (e) {
+        showOverlay("Erro ao criar/abrir sala ❌", "error");
+      }
+    }
+
+    async function enterRoom(room) {
+      try {
         const res = await fetch("/api/dm/enter", {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ name: loggedUser, room })
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ name: loggedUser, room })
         });
 
         const data = await res.json();
 
         if (!res.ok || !data.success) {
-            showOverlay(`Erro ao entrar em "${room}" ❌`, "error");
-            return;
+          showOverlay(`Erro ao entrar em "${room}" ❌`, "error");
+          return;
         }
 
         chatMode = "dm";
@@ -659,203 +735,211 @@ async function enterRoom(room) {
         currentOther = data.channel.other;
 
         setHeader();
+        clearTypingUI();
+        await sendTyping(false);
         await loadMessages({ forceScrollBottom: true });
         showOverlay(`Entrou na sala "${currentRoom}" ✅`, "success");
-    } catch {
+      } catch {
         showOverlay("Erro ao entrar na sala ❌", "error");
+      }
     }
-}
 
-async function leaveRoom() {
-    if (!currentRoom) {
+    async function leaveRoom() {
+      if (!currentRoom) {
         showOverlay("Você não está em uma sala privada.", "info");
         return;
+      }
+
+      await sendTyping(false);
+
+      try {
+        await fetch("/api/dm/leave", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ name: loggedUser, room: currentRoom })
+        });
+      } catch {}
+
+      const left = currentRoom;
+      chatMode = "public";
+      currentRoom = null;
+      currentOther = null;
+
+      setHeader();
+      clearTypingUI();
+      await loadMessages({ forceScrollBottom: true });
+      showOverlay(`Saiu da sala "${left}" ✅`, "success");
     }
 
-    try {
-        await fetch("/api/dm/leave", {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ name: loggedUser, room: currentRoom })
-        });
-    } catch {}
+    async function sendPublicMessage(text) {
+      const contentInput = document.getElementById('content');
+      const { to, content } = parseWhisper(text);
 
-    const left = currentRoom;
-    chatMode = "public";
-    currentRoom = null;
-    currentOther = null;
-
-    setHeader();
-    await loadMessages({ forceScrollBottom: true });
-    showOverlay(`Saiu da sala "${left}" ✅`, "success");
-}
-
-/* ENVIO */
-async function sendPublicMessage(text) {
-    const contentInput = document.getElementById('content');
-    const { to, content } = parseWhisper(text);
-
-    await fetch('/api/messages', {
+      await fetch('/api/messages', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-            name: loggedUser,
-            content: content || "🖼 Imagem",
-            image_url: pendingImageUrl,
-            to
+          name: loggedUser,
+          content: content || "🖼 Imagem",
+          image_url: pendingImageUrl,
+          to
         })
-    });
+      });
 
-    contentInput.value = '';
-    pendingImageUrl = null;
+      contentInput.value = '';
+      pendingImageUrl = null;
 
-    await loadMessages({ forceScrollBottom: true });
+      await loadMessages({ forceScrollBottom: true });
 
-    if (to) showOverlay(`Sussurro enviado para @${to}`, "success");
-}
+      if (to) showOverlay(`Sussurro enviado para @${to}`, "success");
+    }
 
-async function sendDmMessage(text) {
-    const contentInput = document.getElementById('content');
+    async function sendDmMessage(text) {
+      const contentInput = document.getElementById('content');
 
-    await fetch("/api/dm/messages", {
+      await fetch("/api/dm/messages", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-            room: currentRoom,
-            sender: loggedUser,
-            message: text,
-            image_url: pendingImageUrl
+          room: currentRoom,
+          sender: loggedUser,
+          message: text,
+          image_url: pendingImageUrl
         })
-    });
+      });
 
-    contentInput.value = '';
-    pendingImageUrl = null;
+      contentInput.value = '';
+      pendingImageUrl = null;
 
-    await loadMessages({ forceScrollBottom: true });
-
-    // overlay opcional quando foi imagem
-    // if (pendingImageUrl) showOverlay("Imagem enviada ✅", "success");
-}
-
-async function sendMessage() {
-    if (isSending) return;
-
-    const contentInput = document.getElementById('content');
-    const sendButton = document.querySelector(".send-btn");
-    const text = contentInput.value.trim();
-
-    // comandos sempre
-    const create = parseCreateRoom(text);
-    const enter = parseEnterRoom(text);
-
-    if (create) {
-        contentInput.value = "";
-        showOverlay(`Criando sala "${create.room}"...`, "info");
-        await createRoom(create.target, create.room);
-        return;
+      await loadMessages({ forceScrollBottom: true });
     }
 
-    if (enter) {
+    async function sendMessage() {
+      if (isSending) return;
+
+      const contentInput = document.getElementById('content');
+      const sendButton = document.querySelector(".send-btn");
+      const text = contentInput.value.trim();
+
+      const create = parseCreateRoom(text);
+      const enter = parseEnterRoom(text);
+
+      if (create) {
+        contentInput.value = "";
+        showOverlay(`Abrindo sala com @${create.target}...`, "info");
+        await createRoom(create.target, create.room);
+        onUserTyping();
+        return;
+      }
+
+      if (enter) {
         contentInput.value = "";
         showOverlay(`Entrando em "${enter.room}"...`, "info");
         await enterRoom(enter.room);
+        onUserTyping();
         return;
-    }
+      }
 
-    if (isLeaveCommand(text)) {
+      if (isLeaveCommand(text)) {
         contentInput.value = "";
         await leaveRoom();
+        onUserTyping();
         return;
-    }
+      }
 
-    // agora: permite enviar só imagem em DM também
-    if (!text && !pendingImageUrl) return;
+      if (!text && !pendingImageUrl) return;
 
-    isSending = true;
-    sendButton.disabled = true;
-    sendButton.style.opacity = "0.6";
-    sendButton.style.cursor = "not-allowed";
+      isSending = true;
+      sendButton.disabled = true;
+      sendButton.style.opacity = "0.6";
+      sendButton.style.cursor = "not-allowed";
 
-    try {
-        if (chatMode === "dm") {
-            await sendDmMessage(text);
-        } else {
-            await sendPublicMessage(text);
-        }
-    } catch (e) {
+      try {
+        await sendTyping(false);
+        if (chatMode === "dm") await sendDmMessage(text);
+        else await sendPublicMessage(text);
+      } catch (e) {
         console.error("Erro ao enviar:", e);
         showOverlay("Falha ao enviar mensagem ❌", "error");
-    } finally {
+      } finally {
         isSending = false;
         sendButton.disabled = false;
         sendButton.style.opacity = "1";
         sendButton.style.cursor = "pointer";
+        onUserTyping();
+      }
     }
-}
 
-/* ONLINE */
-async function updateOnlineStatus() {
-    if (!loggedUser) return;
-    await fetch('/api/online', {
+    async function updateOnlineStatus() {
+      if (!loggedUser) return;
+      await fetch('/api/online', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ name: loggedUser })
-    });
-}
+      });
+    }
 
-async function loadOnlineUsers() {
-    try {
+    async function loadOnlineUsers() {
+      try {
         const res = await fetch('/api/online');
         const data = await res.json();
         document.getElementById("onlineUsers").textContent =
-            Array.isArray(data) && data.length ? data.map(u => u.name).join(", ") : "0";
-    } catch {}
-}
+          Array.isArray(data) && data.length ? data.map(u => u.name).join(", ") : "0";
+      } catch {}
+    }
 
-/* INIT */
-document.addEventListener("DOMContentLoaded", () => {
-    const miniProfile = document.getElementById("mini-profile");
-    const dropdownMenu = document.getElementById("dropdown-menu");
-    const arrow = document.getElementById("arrow");
+    document.addEventListener("DOMContentLoaded", () => {
+      const miniProfile = document.getElementById("mini-profile");
+      const dropdownMenu = document.getElementById("dropdown-menu");
+      const arrow = document.getElementById("arrow");
+      const contentInput = document.getElementById("content");
 
-    document.getElementById("user-phone").textContent = loggedUser;
+      document.getElementById("user-phone").textContent = loggedUser;
 
-    miniProfile.onclick = () => {
+      miniProfile.onclick = () => {
         const open = dropdownMenu.style.display === "block";
         dropdownMenu.style.display = open ? "none" : "block";
         arrow.style.transform = open ? "rotate(0deg)" : "rotate(180deg)";
-    };
+      };
 
-    document.addEventListener("click", (e) => {
+      document.addEventListener("click", (e) => {
         if (!miniProfile.contains(e.target) && !dropdownMenu.contains(e.target)) {
-            dropdownMenu.style.display = "none";
-            arrow.style.transform = "rotate(0deg)";
+          dropdownMenu.style.display = "none";
+          arrow.style.transform = "rotate(0deg)";
         }
-    });
+      });
 
-    document.getElementById("logout").onclick = () => {
+      document.getElementById("logout").onclick = async () => {
+        try { await sendTyping(false); } catch {}
         sessionStorage.clear();
         window.location.href = "index.html";
-    };
+      };
 
-    document.getElementById("content").addEventListener("keydown", e => {
+      contentInput.addEventListener("keydown", (e) => {
         if (e.key === "Enter" && !e.shiftKey) {
-            e.preventDefault();
-            sendMessage();
+          e.preventDefault();
+          sendMessage();
         }
+      });
+
+      contentInput.addEventListener("input", () => onUserTyping());
+      contentInput.addEventListener("focus", () => onUserTyping());
+      contentInput.addEventListener("blur", () => sendTyping(false));
+
+      setHeader();
+
+      loadMessages();
+      setInterval(() => loadMessages(), 3000);
+
+      updateOnlineStatus();
+      setInterval(updateOnlineStatus, 5000);
+
+      loadOnlineUsers();
+      setInterval(loadOnlineUsers, 5000);
+
+      loadTypingStatus();
+      setInterval(loadTypingStatus, 900);
     });
-
-    setHeader();
-
-    loadMessages();
-    setInterval(() => loadMessages(), 3000);
-
-    updateOnlineStatus();
-    setInterval(updateOnlineStatus, 5000);
-
-    loadOnlineUsers();
-    setInterval(loadOnlineUsers, 5000);
-});
-</script>
+  </script>
 </body>
 </html>
