@@ -385,15 +385,13 @@
     let currentOther = null;
 
     // reply state
-    let replyState = null; // { id, preview: {id,name,snippet,hasImage,created_at} }
+    // ✅ whisper_to: quando o reply vem de um sussurro, guardamos quem deve receber
+    let replyState = null; // { id, preview: {...}, whisper_to?: string|null }
     let lastRenderedElements = [];
 
     // typing
     let typingDebounceTimer = null;
     let lastTypingSentAt = 0;
-
-    // ✅ NOVO: estado local (pra heartbeat não “zerar” teu typing)
-    let localTyping = false;
 
     const userColors = ["#58a6ff","#2ea043","#f0883e","#a371f7","#ff7b72","#1f6feb","#3fb950","#d29922","#bc8cff","#ffa657"];
 
@@ -501,6 +499,15 @@
       const author = msg.name || msg.sender || "Desconhecido";
       const createdAt = msg.created_at || null;
 
+      // ✅ Se o reply veio de um sussurro no chat público, travamos o destino do reply
+      // - Se EU recebi: msg.to === loggedUser -> responder em sussurro para o autor (msg.name)
+      // - Se EU enviei: msg.name === loggedUser -> responder em sussurro para o destinatário (msg.to)
+      let whisperTo = null;
+      if (msg.to !== null && msg.to !== undefined) {
+        if (msg.to === loggedUser) whisperTo = msg.name || null;
+        else whisperTo = msg.to || null;
+      }
+
       replyState = {
         id: msg.id,
         preview: {
@@ -509,14 +516,21 @@
           snippet,
           hasImage,
           created_at: createdAt,
-        }
+        },
+        whisper_to: whisperTo
       };
 
       lastRenderedElements.forEach(el => el.classList.remove("selected-reply"));
       if (element) element.classList.add("selected-reply");
 
       renderReplyBar();
-      showOverlay(`Respondendo @${author}`, "info");
+
+      // opcional (mas útil): avisar quando o reply está “travado” em sussurro
+      if (replyState.whisper_to) {
+        showOverlay(`Reply em sussurro para @${replyState.whisper_to}`, "info");
+      } else {
+        showOverlay(`Respondendo @${author}`, "info");
+      }
 
       const textarea = document.getElementById("content");
       textarea.focus();
@@ -582,26 +596,39 @@
       return { to: null, content: text };
     }
 
+    // ✅ NOVO: aceita nomes com espaços e converte pra um nome válido (slug)
     function normalizeRoomName(roomRaw) {
       let room = (roomRaw || "").trim();
+
+      // espaços -> hífen
       room = room.replace(/\s+/g, "-");
+
+      // remove chars fora do permitido
       room = room.replace(/[^A-Za-z0-9_-]/g, "");
+
+      // tamanho máx
       room = room.slice(0, 32);
+
       return room;
     }
 
+    // ✅ NOVO: /c @user QUALQUER NOME AQUI
     function parseCreateRoom(text) {
       const match = text.match(/^\/c\s+@(\w+)\s+(.+)$/);
       if (!match) return null;
 
       const target = match[1];
       const roomRaw = match[2];
+
       const room = normalizeRoomName(roomRaw);
 
+      // se ficou inválido
       if (!room || room.length < 3) return { target, room: null, roomRaw };
+
       return { target, room, roomRaw };
     }
 
+    // ✅ NOVO: /entrar QUALQUER NOME AQUI
     function parseEnterRoom(text) {
       const match = text.match(/^\/entrar\s+(.+)$/);
       if (!match) return null;
@@ -610,6 +637,7 @@
       const room = normalizeRoomName(roomRaw);
 
       if (!room || room.length < 3) return { room: null, roomRaw };
+
       return { room, roomRaw };
     }
 
@@ -627,14 +655,11 @@
 
       const room = (chatMode === "dm" && currentRoom) ? currentRoom : null;
 
-      // ✅ NOVO: mantém estado local
-      localTyping = !!isTyping;
-
       try {
         await fetch("/api/online", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ name: loggedUser, typing: localTyping, room })
+          body: JSON.stringify({ name: loggedUser, typing: !!isTyping, room })
         });
       } catch {}
     }
@@ -649,8 +674,6 @@
         typingDebounceTimer = setTimeout(() => sendTyping(true), 120);
         return;
       }
-
-      // ✅ NOVO: garante que o estado local caia
       sendTyping(false);
     }
 
@@ -679,22 +702,14 @@
         const typingUsers = users.filter(u => {
           if (!u || !u.name) return false;
           if (u.name === loggedUser) return false;
+          if (!u.typing) return false;
+          if (!u.last_typing) return false;
 
-          // ✅ NOVO: tolerância de campos
-          const typingFlag = (u.typing ?? u.is_typing ?? u.isTyping) === true;
-          if (!typingFlag) return false;
-
-          const lastRaw = u.last_typing ?? u.lastTyping ?? u.updated_at ?? u.last_seen ?? u.lastSeen ?? u.created_at;
-          if (!lastRaw) return false;
-
-          const last = new Date(lastRaw).getTime();
-          if (!Number.isFinite(last)) return false;
+          const last = new Date(u.last_typing).getTime();
           if (now - last > 7000) return false;
 
-          const roomField = u.typing_room ?? u.typingRoom ?? u.room ?? u.typing_room_name ?? null;
-
-          if (chatMode === "dm" && currentRoom) return roomField === currentRoom;
-          return !roomField;
+          if (chatMode === "dm" && currentRoom) return u.typing_room === currentRoom;
+          return !u.typing_room;
         });
 
         setTypingUI(typingUsers.map(u => u.name));
@@ -955,7 +970,15 @@
     // ---------- Send ----------
     async function sendPublicMessage(text) {
       const contentInput = document.getElementById('content');
-      const { to, content } = parseWhisper(text);
+
+      // parse normal /s
+      let { to, content } = parseWhisper(text);
+
+      // ✅ CORREÇÃO: se o reply veio de um sussurro e você não digitou /s,
+      // então envia automaticamente como sussurro para a mesma pessoa
+      if (!to && replyState?.whisper_to) {
+        to = replyState.whisper_to;
+      }
 
       await fetch('/api/messages', {
         method: 'POST',
@@ -1012,6 +1035,7 @@
       const create = parseCreateRoom(text);
       const enter = parseEnterRoom(text);
 
+      // ✅ create room (agora aceita espaços no nome)
       if (create) {
         contentInput.value = "";
 
@@ -1031,6 +1055,7 @@
         return;
       }
 
+      // ✅ enter room (agora aceita espaços no nome)
       if (enter) {
         contentInput.value = "";
 
@@ -1086,17 +1111,11 @@
     // ---------- Online ----------
     async function updateOnlineStatus() {
       if (!loggedUser) return;
-
-      // ✅ NOVO: manda o typing atual também (pra não zerar no backend)
-      const room = (chatMode === "dm" && currentRoom) ? currentRoom : null;
-
-      try {
-        await fetch('/api/online', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ name: loggedUser, typing: localTyping, room })
-        });
-      } catch {}
+      await fetch('/api/online', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ name: loggedUser })
+      });
     }
 
     async function loadOnlineUsers() {
