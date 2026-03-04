@@ -1,3 +1,4 @@
+<!-- index.html (ou a página inicial do Workday) -->
 <!DOCTYPE html>
 <html lang="pt-BR">
 <head>
@@ -625,7 +626,7 @@
       return /^\/sair\s*$/.test(text);
     }
 
-    // ---------- Typing ----------
+    // ---------- Typing (CORRIGIDO) ----------
     async function sendTyping(isTyping) {
       if (!loggedUser) return;
 
@@ -639,7 +640,12 @@
         await fetch("/api/online", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ name: loggedUser, typing: !!isTyping, room })
+          body: JSON.stringify({
+            name: loggedUser,
+            typing: !!isTyping,
+            room,
+            typing_room: room
+          })
         });
       } catch {}
     }
@@ -682,14 +688,29 @@
         const typingUsers = users.filter(u => {
           if (!u || !u.name) return false;
           if (u.name === loggedUser) return false;
-          if (!u.typing) return false;
-          if (!u.last_typing) return false;
 
-          const last = new Date(u.last_typing).getTime();
+          const isTyping =
+            u.typing === true ||
+            u.typing === 1 ||
+            u.typing === "1" ||
+            String(u.typing).toLowerCase() === "true";
+
+          if (!isTyping) return false;
+
+          const lastTypingRaw =
+            u.last_typing ?? u.lastTyping ?? u.updated_at ?? u.updatedAt ?? u.last_seen ?? u.last_seen_at;
+
+          if (!lastTypingRaw) return false;
+
+          const last = new Date(lastTypingRaw).getTime();
+          if (!Number.isFinite(last)) return false;
+
           if (now - last > 7000) return false;
 
-          if (chatMode === "dm" && currentRoom) return u.typing_room === currentRoom;
-          return !u.typing_room;
+          const tRoom = u.typing_room ?? u.room ?? null;
+
+          if (chatMode === "dm" && currentRoom) return tRoom === currentRoom;
+          return !tRoom;
         });
 
         setTypingUI(typingUsers.map(u => u.name));
@@ -1131,14 +1152,19 @@
       }
     }
 
-    // ---------- Online ----------
+    // ---------- Online (CORRIGIDO) ----------
     async function updateOnlineStatus() {
       if (!loggedUser) return;
-      await fetch('/api/online', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ name: loggedUser })
-      });
+
+      const room = (chatMode === "dm" && currentRoom) ? currentRoom : null;
+
+      try {
+        await fetch('/api/online', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ name: loggedUser, room, typing_room: room })
+        });
+      } catch {}
     }
 
     async function loadOnlineUsers() {
