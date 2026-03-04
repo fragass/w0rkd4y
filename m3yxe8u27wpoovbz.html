@@ -394,6 +394,94 @@
     let typingDebounceTimer = null;
     let lastTypingSentAt = 0;
 
+    // -----------------------------
+    // ✅ Badge Title (NUMERO)
+    // -----------------------------
+    const BASE_TITLE = "Página Inicial - Workday";
+    const SEEN_KEY = "wd_lastSeenAt";
+    const BADGE_KEY = "wd_badgeCount";
+
+    function setBadgeTitle(count) {
+      const n = Math.max(0, parseInt(count || 0, 10) || 0);
+      document.title = n > 0 ? `(${n}) ${BASE_TITLE}` : BASE_TITLE;
+      sessionStorage.setItem(BADGE_KEY, String(n));
+    }
+
+    function getSeenAt() {
+      const raw = sessionStorage.getItem(SEEN_KEY);
+      const t = raw ? new Date(raw).getTime() : NaN;
+      return Number.isFinite(t) ? t : 0;
+    }
+
+    function setSeenAt(dateLike) {
+      const d = dateLike ? new Date(dateLike) : new Date();
+      if (!Number.isFinite(d.getTime())) return;
+      sessionStorage.setItem(SEEN_KEY, d.toISOString());
+    }
+
+    function markAllSeen() {
+      // quando a aba volta a ficar visível/focada, zera o badge e marca "visto"
+      setBadgeTitle(0);
+      setSeenAt(new Date());
+    }
+
+    function isDocActive() {
+      return document.visibilityState === "visible" && document.hasFocus();
+    }
+
+    function restoreBadgeOnLoad() {
+      const saved = parseInt(sessionStorage.getItem(BADGE_KEY) || "0", 10) || 0;
+      setBadgeTitle(saved);
+    }
+
+    function bumpBadgeFromMessages(messages, mode) {
+      // Só conta como "não lidas" se a aba NÃO estiver ativa
+      if (isDocActive()) {
+        // se tá ativo, marca visto no timestamp mais recente
+        const newest = getNewestCreatedAt(messages);
+        if (newest) setSeenAt(newest);
+        setBadgeTitle(0);
+        return;
+      }
+
+      const seenAt = getSeenAt();
+      const unseen = (Array.isArray(messages) ? messages : []).filter(m => {
+        const createdAt = new Date(m?.created_at || m?.createdAt || 0).getTime();
+        if (!Number.isFinite(createdAt) || createdAt <= seenAt) return false;
+
+        // não contar mensagens do próprio usuário
+        const author = m?.name || m?.sender || "";
+        if (author === loggedUser) return false;
+
+        // no público: contar apenas o que você consegue ver
+        if (mode === "public") {
+          if (!canUserSeeMessage(m)) return false;
+        }
+        // no DM: se está em outra sala, o server deveria filtrar, então ok
+
+        return true;
+      }).length;
+
+      const current = parseInt(sessionStorage.getItem(BADGE_KEY) || "0", 10) || 0;
+      // aqui a gente usa o "unseen total desde o último visto" como badge final
+      // (em vez de somar infinito)
+      setBadgeTitle(unseen > 0 ? unseen : current);
+    }
+
+    function getNewestCreatedAt(messages) {
+      let max = 0;
+      (Array.isArray(messages) ? messages : []).forEach(m => {
+        const t = new Date(m?.created_at || m?.createdAt || 0).getTime();
+        if (Number.isFinite(t) && t > max) max = t;
+      });
+      return max ? new Date(max).toISOString() : null;
+    }
+
+    window.addEventListener("focus", markAllSeen);
+    document.addEventListener("visibilitychange", () => {
+      if (document.visibilityState === "visible") markAllSeen();
+    });
+
     const userColors = ["#58a6ff","#2ea043","#f0883e","#a371f7","#ff7b72","#1f6feb","#3fb950","#d29922","#bc8cff","#ffa657"];
 
     function getColorFromName(name) {
@@ -742,6 +830,9 @@
 
         const visibleMessages = Array.isArray(data) ? data.filter(msg => canUserSeeMessage(msg)) : [];
 
+        // 🔔 badge: atualiza com base no que chegou desde o último "visto"
+        bumpBadgeFromMessages(visibleMessages, "public");
+
         if (visibleMessages.length) {
           const lastVisible = visibleMessages[visibleMessages.length - 1];
 
@@ -799,6 +890,13 @@
           const heightDiff = box.scrollHeight - previousScrollHeight;
           box.scrollTop = previousScrollTop + heightDiff;
         }
+
+        // se você está no fim e a aba tá ativa, considera "visto"
+        if (isDocActive() && (distanceFromBottom < 80 || forceScrollBottom)) {
+          const newest = getNewestCreatedAt(visibleMessages);
+          if (newest) setSeenAt(newest);
+          setBadgeTitle(0);
+        }
       } catch (e) {
         console.error("Erro ao carregar mensagens:", e);
       }
@@ -813,6 +911,9 @@
         const res = await fetch(`/api/dm/messages?room=${encodeURIComponent(currentRoom)}&name=${encodeURIComponent(loggedUser)}`);
         const data = await res.json();
         const msgs = Array.isArray(data) ? data : [];
+
+        // 🔔 badge: também conta DM não lida quando a aba não tá ativa
+        bumpBadgeFromMessages(msgs, "dm");
 
         const box = document.getElementById('messages');
         const previousScrollTop = box.scrollTop;
@@ -856,6 +957,12 @@
         } else {
           const heightDiff = box.scrollHeight - previousScrollHeight;
           box.scrollTop = previousScrollTop + heightDiff;
+        }
+
+        if (isDocActive() && (distanceFromBottom < 80 || forceScrollBottom)) {
+          const newest = getNewestCreatedAt(msgs);
+          if (newest) setSeenAt(newest);
+          setBadgeTitle(0);
         }
       } catch (e) {
         console.error("Erro ao carregar DM:", e);
@@ -935,6 +1042,9 @@
         await sendTyping(false);
         await loadMessages({ forceScrollBottom: true });
         showOverlay(`Entrou na sala "${currentRoom}" ✅`, "success");
+
+        // ao entrar, se a aba tá ativa, zera badge
+        if (isDocActive()) markAllSeen();
       } catch {
         showOverlay("Erro ao entrar na sala ❌", "error");
       }
@@ -966,6 +1076,8 @@
       clearReplySelection();
       await loadMessages({ forceScrollBottom: true });
       showOverlay(`Saiu da sala "${left}" ✅`, "success");
+
+      if (isDocActive()) markAllSeen();
     }
 
     // ---------- Helpers (pra não “sumir” msg em erro) ----------
@@ -1185,6 +1297,9 @@
 
       document.getElementById("user-phone").textContent = loggedUser;
 
+      // ✅ inicia badge com o que tiver salvo
+      restoreBadgeOnLoad();
+
       miniProfile.onclick = () => {
         const open = dropdownMenu.style.display === "block";
         dropdownMenu.style.display = open ? "none" : "block";
@@ -1212,7 +1327,7 @@
       });
 
       contentInput.addEventListener("input", () => onUserTyping());
-      contentInput.addEventListener("focus", () => onUserTyping());
+      contentInput.addEventListener("focus", () => { onUserTyping(); markAllSeen(); });
       contentInput.addEventListener("blur", () => sendTyping(false));
 
       setHeader();
