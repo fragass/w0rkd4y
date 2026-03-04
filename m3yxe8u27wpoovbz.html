@@ -500,8 +500,6 @@
       const createdAt = msg.created_at || null;
 
       // ✅ Se o reply veio de um sussurro no chat público, travamos o destino do reply
-      // - Se EU recebi: msg.to === loggedUser -> responder em sussurro para o autor (msg.name)
-      // - Se EU enviei: msg.name === loggedUser -> responder em sussurro para o destinatário (msg.to)
       let whisperTo = null;
       if (msg.to !== null && msg.to !== undefined) {
         if (msg.to === loggedUser) whisperTo = msg.name || null;
@@ -525,12 +523,8 @@
 
       renderReplyBar();
 
-      // opcional (mas útil): avisar quando o reply está “travado” em sussurro
-      if (replyState.whisper_to) {
-        showOverlay(`Reply em sussurro para @${replyState.whisper_to}`, "info");
-      } else {
-        showOverlay(`Respondendo @${author}`, "info");
-      }
+      if (replyState.whisper_to) showOverlay(`Reply em sussurro para @${replyState.whisper_to}`, "info");
+      else showOverlay(`Respondendo @${author}`, "info");
 
       const textarea = document.getElementById("content");
       textarea.focus();
@@ -596,39 +590,26 @@
       return { to: null, content: text };
     }
 
-    // ✅ NOVO: aceita nomes com espaços e converte pra um nome válido (slug)
     function normalizeRoomName(roomRaw) {
       let room = (roomRaw || "").trim();
-
-      // espaços -> hífen
       room = room.replace(/\s+/g, "-");
-
-      // remove chars fora do permitido
       room = room.replace(/[^A-Za-z0-9_-]/g, "");
-
-      // tamanho máx
       room = room.slice(0, 32);
-
       return room;
     }
 
-    // ✅ NOVO: /c @user QUALQUER NOME AQUI
     function parseCreateRoom(text) {
       const match = text.match(/^\/c\s+@(\w+)\s+(.+)$/);
       if (!match) return null;
 
       const target = match[1];
       const roomRaw = match[2];
-
       const room = normalizeRoomName(roomRaw);
 
-      // se ficou inválido
       if (!room || room.length < 3) return { target, room: null, roomRaw };
-
       return { target, room, roomRaw };
     }
 
-    // ✅ NOVO: /entrar QUALQUER NOME AQUI
     function parseEnterRoom(text) {
       const match = text.match(/^\/entrar\s+(.+)$/);
       if (!match) return null;
@@ -637,7 +618,6 @@
       const room = normalizeRoomName(roomRaw);
 
       if (!room || room.length < 3) return { room: null, roomRaw };
-
       return { room, roomRaw };
     }
 
@@ -967,6 +947,11 @@
       showOverlay(`Saiu da sala "${left}" ✅`, "success");
     }
 
+    // ---------- Helpers (pra não “sumir” msg em erro) ----------
+    async function safeReadJson(res) {
+      try { return await res.json(); } catch { return null; }
+    }
+
     // ---------- Send ----------
     async function sendPublicMessage(text) {
       const contentInput = document.getElementById('content');
@@ -1005,19 +990,59 @@
     async function sendDmMessage(text) {
       const contentInput = document.getElementById('content');
 
-      await fetch("/api/dm/messages", {
+      // payload base
+      const basePayload = {
+        room: currentRoom,
+        sender: loggedUser,
+        message: text,
+        image_url: pendingImageUrl
+      };
+
+      // tenta com reply (se existir)
+      const withReplyPayload = {
+        ...basePayload,
+        reply_to: replyState?.id ?? null,
+        reply_preview: replyState?.preview ?? null,
+      };
+
+      // 1) tenta enviar com reply
+      let res = await fetch("/api/dm/messages", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          room: currentRoom,
-          sender: loggedUser,
-          message: text,
-          image_url: pendingImageUrl,
-          reply_to: replyState?.id ?? null,
-          reply_preview: replyState?.preview ?? null,
-        })
+        body: JSON.stringify(withReplyPayload)
       });
 
+      // 2) se falhar, reenvia sem reply (pra não sumir a mensagem)
+      if (!res.ok) {
+        const errData = await safeReadJson(res);
+        const errMsg = errData?.message || errData?.error || "";
+
+        // só faz fallback se tinha reply
+        if (replyState?.id || replyState?.preview) {
+          res = await fetch("/api/dm/messages", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify(basePayload)
+          });
+
+          if (!res.ok) {
+            const err2 = await safeReadJson(res);
+            showOverlay(`Falha ao enviar no privado ❌ ${err2?.message || err2?.error || ""}`, "error");
+            return; // não limpa input
+          }
+
+          // enviou sem reply
+          showOverlay(
+            "Seu servidor não aceitou reply no privado. Enviei a mensagem sem reply. (Precisa adicionar colunas no DM pra suportar.)",
+            "info"
+          );
+        } else {
+          showOverlay(`Falha ao enviar no privado ❌ ${errMsg}`, "error");
+          return; // não limpa input
+        }
+      }
+
+      // sucesso (com reply ou fallback)
       contentInput.value = '';
       pendingImageUrl = null;
       clearReplySelection();
@@ -1035,7 +1060,6 @@
       const create = parseCreateRoom(text);
       const enter = parseEnterRoom(text);
 
-      // ✅ create room (agora aceita espaços no nome)
       if (create) {
         contentInput.value = "";
 
@@ -1055,7 +1079,6 @@
         return;
       }
 
-      // ✅ enter room (agora aceita espaços no nome)
       if (enter) {
         contentInput.value = "";
 
