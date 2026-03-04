@@ -385,7 +385,8 @@
     let currentOther = null;
 
     // reply state
-    let replyState = null; // { id, preview: {id,name,snippet,hasImage,created_at} }
+    // ✅ whisper_to: quando o reply vem de um sussurro, guardamos quem deve receber
+    let replyState = null; // { id, preview: {...}, whisper_to?: string|null }
     let lastRenderedElements = [];
 
     // typing
@@ -498,6 +499,15 @@
       const author = msg.name || msg.sender || "Desconhecido";
       const createdAt = msg.created_at || null;
 
+      // ✅ Se o reply veio de um sussurro no chat público, travamos o destino do reply
+      // - Se EU recebi: msg.to === loggedUser -> responder em sussurro para o autor (msg.name)
+      // - Se EU enviei: msg.name === loggedUser -> responder em sussurro para o destinatário (msg.to)
+      let whisperTo = null;
+      if (msg.to !== null && msg.to !== undefined) {
+        if (msg.to === loggedUser) whisperTo = msg.name || null;
+        else whisperTo = msg.to || null;
+      }
+
       replyState = {
         id: msg.id,
         preview: {
@@ -506,14 +516,21 @@
           snippet,
           hasImage,
           created_at: createdAt,
-        }
+        },
+        whisper_to: whisperTo
       };
 
       lastRenderedElements.forEach(el => el.classList.remove("selected-reply"));
       if (element) element.classList.add("selected-reply");
 
       renderReplyBar();
-      showOverlay(`Respondendo @${author}`, "info");
+
+      // opcional (mas útil): avisar quando o reply está “travado” em sussurro
+      if (replyState.whisper_to) {
+        showOverlay(`Reply em sussurro para @${replyState.whisper_to}`, "info");
+      } else {
+        showOverlay(`Respondendo @${author}`, "info");
+      }
 
       const textarea = document.getElementById("content");
       textarea.focus();
@@ -953,7 +970,15 @@
     // ---------- Send ----------
     async function sendPublicMessage(text) {
       const contentInput = document.getElementById('content');
-      const { to, content } = parseWhisper(text);
+
+      // parse normal /s
+      let { to, content } = parseWhisper(text);
+
+      // ✅ CORREÇÃO: se o reply veio de um sussurro e você não digitou /s,
+      // então envia automaticamente como sussurro para a mesma pessoa
+      if (!to && replyState?.whisper_to) {
+        to = replyState.whisper_to;
+      }
 
       await fetch('/api/messages', {
         method: 'POST',
