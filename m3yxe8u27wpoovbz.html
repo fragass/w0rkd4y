@@ -1,4 +1,3 @@
-
 <!DOCTYPE html>
 <html lang="pt-BR">
 <head>
@@ -36,6 +35,69 @@
       align-items: center;
       height: 100vh;
       padding: 10px;
+    }
+
+    #welcome-screen {
+      position: fixed;
+      inset: 0;
+      background:
+        radial-gradient(circle at top, rgba(88,166,255,0.10), transparent 35%),
+        linear-gradient(180deg, rgba(11,15,20,0.98), rgba(11,15,20,1));
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      z-index: 99999;
+      opacity: 1;
+      visibility: visible;
+      transition: opacity .45s ease, visibility .45s ease;
+    }
+
+    #welcome-screen.hidden {
+      opacity: 0;
+      visibility: hidden;
+      pointer-events: none;
+    }
+
+    .welcome-card {
+      width: min(92vw, 360px);
+      background: linear-gradient(180deg, rgba(21,26,33,0.98), rgba(16,21,28,0.98));
+      border: 1px solid rgba(255,255,255,.08);
+      border-radius: 24px;
+      padding: 28px 22px;
+      box-shadow: 0 25px 60px rgba(0,0,0,.55);
+      text-align: center;
+      transform: scale(.96);
+      animation: welcomePop .35s ease forwards;
+    }
+
+    @keyframes welcomePop {
+      to { transform: scale(1); }
+    }
+
+    #welcome-avatar {
+      width: 92px;
+      height: 92px;
+      border-radius: 50%;
+      object-fit: cover;
+      display: block;
+      margin: 0 auto 16px;
+      border: 1px solid rgba(255,255,255,.14);
+      box-shadow: 0 10px 30px rgba(0,0,0,.35);
+      background: #10151c;
+    }
+
+    #welcome-title {
+      margin: 0;
+      font-size: 24px;
+      font-weight: 800;
+      color: #ffffff;
+      line-height: 1.15;
+    }
+
+    #welcome-subtitle {
+      margin: 8px 0 0;
+      font-size: 13px;
+      color: #8b949e;
     }
 
     .online-box {
@@ -492,11 +554,23 @@
       .online-box {
         max-width: 190px;
       }
+      .welcome-card {
+        width: min(94vw, 340px);
+        padding: 24px 18px;
+      }
     }
   </style>
 </head>
 
 <body>
+  <div id="welcome-screen">
+    <div class="welcome-card">
+      <img id="welcome-avatar" alt="Foto do perfil">
+      <h1 id="welcome-title">Olá</h1>
+      <p id="welcome-subtitle">Bem-vindo de volta</p>
+    </div>
+  </div>
+
   <div id="mini-profile">
     <div class="mini-profile-avatar-wrap">
       <img id="mini-profile-avatar" alt="Avatar do usuário">
@@ -697,6 +771,25 @@
       return svgToDataUrl(svg);
     }
 
+    function showWelcomeScreen(profile) {
+      const screen = document.getElementById("welcome-screen");
+      const avatar = document.getElementById("welcome-avatar");
+      const title = document.getElementById("welcome-title");
+      const subtitle = document.getElementById("welcome-subtitle");
+
+      const finalName = profile?.display_name || profile?.username || loggedUser || "usuário";
+      const finalUsername = profile?.username || loggedUser || "usuário";
+      const finalAvatar = profile?.avatar_url || getDefaultAvatar(finalName);
+
+      avatar.src = finalAvatar;
+      title.textContent = `Olá, ${finalName}`;
+      subtitle.textContent = `Bem-vindo de volta!`;
+
+      setTimeout(() => {
+        screen.classList.add("hidden");
+      }, 1800);
+    }
+
     function highlightMentions(text) {
       const escaped = escapeHTML(text);
       return escaped.replace(/@(\w+)/g, (match, username) => {
@@ -782,21 +875,26 @@
         const data = await res.json();
 
         if (!res.ok || !data.success) {
-          applyProfileToUI({
+          const fallbackProfile = {
             username: loggedUser,
             display_name: loggedUser,
             avatar_url: null
-          });
+          };
+          applyProfileToUI(fallbackProfile);
+          showWelcomeScreen(fallbackProfile);
           return;
         }
 
         applyProfileToUI(data.profile);
+        showWelcomeScreen(data.profile);
       } catch {
-        applyProfileToUI({
+        const fallbackProfile = {
           username: loggedUser,
           display_name: loggedUser,
           avatar_url: null
-        });
+        };
+        applyProfileToUI(fallbackProfile);
+        showWelcomeScreen(fallbackProfile);
       }
     }
 
@@ -836,7 +934,17 @@
         body: formData
       });
 
-      const data = await res.json();
+      const contentType = res.headers.get("content-type") || "";
+      let data = null;
+
+      if (contentType.includes("application/json")) {
+        data = await res.json();
+      } else {
+        const text = await res.text();
+        throw new Error(text.includes("NOT_FOUND")
+          ? "A rota /api/profile-upload não foi encontrada no Vercel."
+          : "Resposta inválida do servidor no upload do avatar.");
+      }
 
       if (!res.ok || !data.success) {
         throw new Error(data.message || "Erro ao enviar avatar");
@@ -1585,6 +1693,7 @@
           showOverlay("Enviando foto de perfil...", "info");
           const url = await uploadProfileAvatar(file);
           await saveProfile({ avatar_url: url });
+          applyProfileToUI({ ...currentProfile, avatar_url: url });
           showOverlay("Foto de perfil atualizada com sucesso.", "success");
         } catch (err) {
           showOverlay(err.message || "Erro ao atualizar foto.", "error");
@@ -1637,3 +1746,5 @@
   </script>
 </body>
 </html>
+
+
