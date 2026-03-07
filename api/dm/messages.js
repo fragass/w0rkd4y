@@ -1,4 +1,3 @@
-// api/dm/messages.js
 export default async function handler(req, res) {
   try {
     const SUPABASE_URL = process.env.SUPABASE_URL;
@@ -10,8 +9,40 @@ export default async function handler(req, res) {
 
     const channelsEndpoint = `${SUPABASE_URL}/rest/v1/private_channels`;
     const dmEndpoint = `${SUPABASE_URL}/rest/v1/private_messages`;
+    const usersEndpoint = `${SUPABASE_URL}/rest/v1/users`;
 
-    // helper: pega canal e valida se o user participa
+    function buildInFilter(values) {
+      return values
+        .map(v => `"${String(v).replace(/"/g, '\\"')}"`)
+        .join(",");
+    }
+
+    async function getAdminMap(usernames) {
+      const cleanNames = Array.from(new Set((usernames || []).filter(Boolean)));
+      if (!cleanNames.length) return {};
+
+      const r = await fetch(
+        `${usersEndpoint}?select=username,is_admin&username=in.(${encodeURIComponent(buildInFilter(cleanNames))})`,
+        {
+          headers: {
+            apikey: SUPABASE_SERVICE_ROLE_KEY,
+            Authorization: `Bearer ${SUPABASE_SERVICE_ROLE_KEY}`,
+          },
+        }
+      );
+
+      const users = await r.json();
+      const map = {};
+
+      if (Array.isArray(users)) {
+        users.forEach(user => {
+          map[user.username] = !!user.is_admin;
+        });
+      }
+
+      return map;
+    }
+
     async function getChannelByRoom(room) {
       const r = await fetch(
         `${channelsEndpoint}?select=id,room,user1,user2&room=eq.${encodeURIComponent(room)}&limit=1`,
@@ -30,7 +61,9 @@ export default async function handler(req, res) {
       const room = String(req.query.room || "");
       const name = String(req.query.name || "");
 
-      if (!room || !name) return res.status(400).json({ success: false, error: "Missing room/name" });
+      if (!room || !name) {
+        return res.status(400).json({ success: false, error: "Missing room/name" });
+      }
 
       const channel = await getChannelByRoom(room);
       if (!channel) return res.status(404).json([]);
@@ -49,7 +82,17 @@ export default async function handler(req, res) {
       );
 
       const data = await r.json();
-      return res.status(200).json(Array.isArray(data) ? data : []);
+      const list = Array.isArray(data) ? data : [];
+
+      const usernames = list.map(msg => msg.sender).filter(Boolean);
+      const adminMap = await getAdminMap(usernames);
+
+      const enriched = list.map(msg => ({
+        ...msg,
+        is_admin: !!adminMap[msg.sender]
+      }));
+
+      return res.status(200).json(enriched);
     }
 
     if (req.method === "POST") {
@@ -72,7 +115,6 @@ export default async function handler(req, res) {
       const allowed = channel.user1 === sender || channel.user2 === sender;
       if (!allowed) return res.status(403).json({ success: false, error: "Not allowed" });
 
-      // monta preview no backend quando reply_to existir
       async function buildReplyPreviewFromDb(id) {
         if (!id) return null;
 
@@ -89,7 +131,6 @@ export default async function handler(req, res) {
         const original = Array.isArray(arr) && arr.length ? arr[0] : null;
         if (!original) return null;
 
-        // só pode responder mensagens do MESMO channel_id
         if (String(original.channel_id) !== String(channel.id)) return null;
 
         const text = (original.message || "").trim();
@@ -149,7 +190,6 @@ export default async function handler(req, res) {
         return res.status(500).json({ success: false, error: t });
       }
 
-      // atualiza last_activity
       try {
         await fetch(`${channelsEndpoint}?room=eq.${encodeURIComponent(room)}`, {
           method: "PATCH",
