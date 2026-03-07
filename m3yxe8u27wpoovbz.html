@@ -184,6 +184,38 @@
     .username { font-weight: 600; color: #ffffff; }
     .timestamp { font-size: 11px; color: #8b949e; white-space: nowrap; }
 
+    .name-with-badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      flex-wrap: wrap;
+    }
+
+    .admin-badge {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      height: 18px;
+      padding: 0 7px;
+      border-radius: 999px;
+      background: rgba(218,54,51,.16);
+      border: 1px solid rgba(218,54,51,.32);
+      color: #ffb4b1;
+      font-size: 10px;
+      font-weight: 800;
+      letter-spacing: .4px;
+      line-height: 1;
+      white-space: nowrap;
+    }
+
+    .profile-name-inline {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      min-width: 0;
+      flex-wrap: wrap;
+    }
+
     .form {
       padding: 14px;
       border-top: 1px solid rgba(255,255,255,.08);
@@ -643,6 +675,8 @@
 
   <script>
     const loggedUser = sessionStorage.getItem("loggedUser");
+    const currentUserIsAdmin = sessionStorage.getItem("isAdmin") === "true";
+
     let lastMessageId = null;
     let pendingImageUrl = null;
     let isSending = false;
@@ -771,6 +805,19 @@
       return svgToDataUrl(svg);
     }
 
+    function getAdminBadgeHTML(isAdmin) {
+      return isAdmin ? `<span class="admin-badge">ADMIN</span>` : "";
+    }
+
+    function getNameWithBadgeHTML(name, isAdmin, color = "#ffffff") {
+      return `
+        <span class="name-with-badge">
+          ${getAdminBadgeHTML(isAdmin)}
+          <span style="color:${color}; font-weight:600;">${escapeHTML(name || "")}</span>
+        </span>
+      `;
+    }
+
     function showWelcomeScreen(profile) {
       const screen = document.getElementById("welcome-screen");
       const avatar = document.getElementById("welcome-avatar");
@@ -778,7 +825,6 @@
       const subtitle = document.getElementById("welcome-subtitle");
 
       const finalName = profile?.display_name || profile?.username || loggedUser || "usuário";
-      const finalUsername = profile?.username || loggedUser || "usuário";
       const finalAvatar = profile?.avatar_url || getDefaultAvatar(finalName);
 
       avatar.src = finalAvatar;
@@ -858,11 +904,24 @@
       currentProfile = finalProfile;
 
       const avatar = finalProfile.avatar_url || getDefaultAvatar(finalProfile.display_name);
+      const isAdmin = currentUserIsAdmin;
 
-      document.getElementById("user-display-name").textContent = finalProfile.display_name;
+      document.getElementById("user-display-name").innerHTML = `
+        <span class="profile-name-inline">
+          ${getAdminBadgeHTML(isAdmin)}
+          <span>${escapeHTML(finalProfile.display_name)}</span>
+        </span>
+      `;
+
       document.getElementById("user-phone").textContent = `@${finalProfile.username}`;
 
-      document.getElementById("dropdown-display-name").textContent = finalProfile.display_name;
+      document.getElementById("dropdown-display-name").innerHTML = `
+        <span class="profile-name-inline">
+          ${getAdminBadgeHTML(isAdmin)}
+          <span>${escapeHTML(finalProfile.display_name)}</span>
+        </span>
+      `;
+
       document.getElementById("dropdown-username").textContent = `@${finalProfile.username}`;
 
       document.getElementById("mini-profile-avatar").src = avatar;
@@ -1263,7 +1322,7 @@
 
           div.innerHTML = `
             <div class="message-header">
-              <span class="username" style="color:${color}">${escapeHTML(msg.name)}</span>
+              <span class="username">${getNameWithBadgeHTML(msg.name, msg.is_admin, color)}</span>
               <span class="timestamp">${date}</span>
             </div>
             ${replyHTML}
@@ -1328,7 +1387,7 @@
 
           div.innerHTML = `
             <div class="message-header">
-              <span class="username" style="color:${color}">${escapeHTML(m.sender)}</span>
+              <span class="username">${getNameWithBadgeHTML(m.sender, m.is_admin, color)}</span>
               <span class="timestamp">${date}</span>
             </div>
             ${replyHTML}
@@ -1746,5 +1805,3 @@
   </script>
 </body>
 </html>
-
-
