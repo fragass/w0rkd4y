@@ -146,11 +146,11 @@ module.exports = async function handler(req, res) {
 
     /* ========================= */
 
-    return res.status(200).json({
-      success: true,
-      message: "Panic clear executado com sucesso",
-      deleted_images: imagePaths.length
-    });
+return res.status(200).json({
+  success: true,
+  message: "❗ Chat completamente limpo. Mensagens, imagens e salas privadas foram removidas.",
+  deleted_images: imagePaths.length
+});
 
   } catch (error) {
     return res.status(500).json({
@@ -158,4 +158,5 @@ module.exports = async function handler(req, res) {
       message: error.message || "Erro interno ao executar clear all"
     });
   }
+
 };
