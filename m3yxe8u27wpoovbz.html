@@ -676,6 +676,7 @@
   <script>
     const loggedUser = sessionStorage.getItem("loggedUser");
     const currentUserIsAdmin = sessionStorage.getItem("isAdmin") === "true";
+    const IMAGE_READY_PLACEHOLDER = "📎 imagem anexada";
 
     let lastMessageId = null;
     let pendingImageUrl = null;
@@ -767,6 +768,13 @@
         if (Number.isFinite(t) && t > max) max = t;
       });
       return max ? new Date(max).toISOString() : null;
+    }
+
+    function stripImagePlaceholder(text) {
+      return String(text || "")
+        .replace(IMAGE_READY_PLACEHOLDER, "")
+        .replace(/\n{3,}/g, "\n\n")
+        .trim();
     }
 
     window.addEventListener("focus", markAllSeen);
@@ -1114,9 +1122,12 @@
         if (data.url) {
           pendingImageUrl = data.url;
           const textarea = document.getElementById("content");
-          textarea.value += (textarea.value.trim() ? "\n" : "") + "🖼 [Imagem pronta para envio]";
+          const cleanValue = stripImagePlaceholder(textarea.value);
+          textarea.value = cleanValue
+            ? `${cleanValue}\n${IMAGE_READY_PLACEHOLDER}`
+            : IMAGE_READY_PLACEHOLDER;
           textarea.focus();
-          showOverlay("Imagem pronta para envio ✅", "success");
+          showOverlay("Imagem anexada com sucesso ✅", "success");
           onUserTyping();
         } else {
           showOverlay("Falha no upload da imagem ❌", "error");
@@ -1379,9 +1390,13 @@
           const date = new Date(m.created_at).toLocaleString('pt-BR');
           const color = getColorFromName(m.sender);
 
-          const dmContentHTML = m.image_url
-            ? `<a href="${escapeHTML(m.image_url)}" target="_blank" style="color:#58a6ff">🖼 Imagem</a>` + (m.message ? `<div style="margin-top:6px;">${highlightMentions(m.message)}</div>` : "")
-            : highlightMentions(m.message || "");
+const dmContentHTML = m.image_url
+  ? `<a href="${escapeHTML(m.image_url)}" target="_blank" style="color:#58a6ff">🖼 Imagem</a>${
+      m.message && m.message !== "🖼 Imagem"
+        ? `<div style="margin-top:6px;">${highlightMentions(m.message)}</div>`
+        : ""
+    }`
+  : highlightMentions(m.message || "");
 
           const replyHTML = buildReplyPreviewHTML(m.reply_preview);
 
@@ -1535,6 +1550,8 @@
 
       let { to, content } = parseWhisper(text);
 
+      content = stripImagePlaceholder(content);
+
       if (!to && replyState?.whisper_to) {
         to = replyState.whisper_to;
       }
@@ -1563,11 +1580,12 @@
 
     async function sendDmMessage(text) {
       const contentInput = document.getElementById('content');
+      text = stripImagePlaceholder(text);
 
       const basePayload = {
         room: currentRoom,
         sender: loggedUser,
-        message: text,
+        message: text || "🖼 Imagem",
         image_url: pendingImageUrl
       };
 
@@ -1805,3 +1823,5 @@
   </script>
 </body>
 </html>
+
+
