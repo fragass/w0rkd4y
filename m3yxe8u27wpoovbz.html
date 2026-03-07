@@ -1,4 +1,4 @@
-<!-- index.html (ou a página inicial do Workday) -->
+
 <!DOCTYPE html>
 <html lang="pt-BR">
 <head>
@@ -10,7 +10,7 @@
   </script>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Página inicial - Workday</title>
+  <title>Página Inicial - Workday</title>
 
   <style>
     * { box-sizing: border-box; }
@@ -50,6 +50,7 @@
       color: #b8bcc4;
       box-shadow: 0 6px 18px rgba(0,0,0,.5);
       z-index: 1000;
+      max-width: 340px;
     }
 
     .container {
@@ -112,13 +113,14 @@
       font-size: 13px;
       transition: background 0.2s ease, transform 0.15s ease, border-color 0.2s ease;
       cursor: pointer;
+      word-break: break-word;
     }
     .message:hover { background: #1b2028; transform: translateY(-1px); }
     .message.selected-reply { border-color: rgba(88,166,255,0.8); box-shadow: 0 0 0 1px rgba(88,166,255,0.18); }
 
-    .message-header { display: flex; justify-content: space-between; margin-bottom: 4px; }
+    .message-header { display: flex; justify-content: space-between; gap: 10px; margin-bottom: 4px; }
     .username { font-weight: 600; color: #ffffff; }
-    .timestamp { font-size: 11px; color: #8b949e; }
+    .timestamp { font-size: 11px; color: #8b949e; white-space: nowrap; }
 
     .form {
       padding: 14px;
@@ -130,7 +132,6 @@
       flex-wrap: wrap;
     }
 
-    /* Reply bar */
     .reply-bar {
       width: 100%;
       display: none;
@@ -181,6 +182,7 @@
       outline: none;
       transition: border 0.2s ease, box-shadow 0.2s ease;
       min-width: 180px;
+      font-family: inherit;
     }
     textarea:focus { border-color: #3a3d46; box-shadow: 0 0 0 2px rgba(255,255,255,.12); }
 
@@ -197,7 +199,7 @@
     }
     button.send-btn:hover { background: #151a21; transform: translateY(-1px); }
 
-    .emoji-toggle { cursor: pointer; font-size: 20px; opacity: 0.75; transition: all 0.2s ease; }
+    .emoji-toggle { cursor: pointer; font-size: 20px; opacity: 0.75; transition: all 0.2s ease; user-select: none; }
     .emoji-toggle:hover { opacity: 1; transform: scale(1.15); }
 
     .emoji-panel {
@@ -214,11 +216,12 @@
       display: none;
       flex-wrap: wrap;
       gap: 6px;
+      box-shadow: 0 14px 30px rgba(0,0,0,.45);
+      z-index: 50;
     }
     .emoji-panel span { cursor: pointer; font-size: 20px; transition: transform 0.1s ease; }
     .emoji-panel span:hover { transform: scale(1.3); }
 
-    /* reply preview inside message */
     .reply-preview {
       background: rgba(255,255,255,.04);
       border: 1px solid rgba(255,255,255,.08);
@@ -236,50 +239,198 @@
       position: fixed;
       top: 10px;
       right: 10px;
-      background: rgba(21,26,33,0.95);
+      min-width: 230px;
+      max-width: 320px;
+      background: linear-gradient(180deg, rgba(21,26,33,0.98), rgba(16,21,28,0.98));
       color: #ffffff;
-      font-family: Arial, sans-serif;
-      font-size: 14px;
-      padding: 6px 12px;
-      border-radius: 12px;
-      box-shadow: 0 6px 18px rgba(0,0,0,.5);
+      padding: 10px 12px;
+      border-radius: 16px;
+      border: 1px solid rgba(255,255,255,.08);
+      box-shadow: 0 14px 35px rgba(0,0,0,.45);
       z-index: 1000;
       display: flex;
       align-items: center;
-      gap: 8px;
+      gap: 10px;
       cursor: pointer;
       user-select: none;
+      transition: transform .18s ease, border-color .2s ease, box-shadow .2s ease;
+      backdrop-filter: blur(10px);
     }
-    #mini-profile span { font-weight: bold; color: #fff; }
+    #mini-profile:hover {
+      transform: translateY(-1px);
+      border-color: rgba(255,255,255,.14);
+      box-shadow: 0 18px 40px rgba(0,0,0,.52);
+    }
 
-    #arrow { transition: transform 0.3s ease; margin-left: 4px; }
+    .mini-profile-avatar-wrap {
+      position: relative;
+      width: 42px;
+      height: 42px;
+      flex-shrink: 0;
+    }
+
+    #mini-profile-avatar,
+    #dropdown-avatar {
+      display: block;
+      border-radius: 50%;
+      object-fit: cover;
+      background: #0b0f14;
+      border: 1px solid rgba(255,255,255,.12);
+    }
+
+    #mini-profile-avatar {
+      width: 42px;
+      height: 42px;
+    }
+
+    #dropdown-avatar {
+      width: 52px;
+      height: 52px;
+    }
+
+    .mini-profile-status {
+      position: absolute;
+      right: -1px;
+      bottom: -1px;
+      width: 12px;
+      height: 12px;
+      border-radius: 50%;
+      background: #3fb950;
+      border: 2px solid #151a21;
+      box-shadow: 0 0 0 4px rgba(63,185,80,.10);
+    }
+
+    .mini-profile-info {
+      display: flex;
+      flex-direction: column;
+      min-width: 0;
+      gap: 2px;
+      flex: 1;
+    }
+
+    #user-display-name {
+      font-size: 13px;
+      font-weight: 700;
+      color: #ffffff;
+      line-height: 1.1;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+
+    #user-phone {
+      font-size: 11px;
+      color: #8b949e;
+      line-height: 1.1;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+
+    #arrow {
+      transition: transform 0.25s ease;
+      opacity: .9;
+      flex-shrink: 0;
+    }
 
     #dropdown-menu {
       display: none;
-      position: absolute;
-      top: 40px;
-      right: 0;
-      background: rgba(21,26,33,0.95);
-      border-radius: 10px;
-      box-shadow: 0 6px 18px rgba(0,0,0,.6);
-      padding: 8px 12px;
-      z-index: 1000;
+      position: fixed;
+      top: 68px;
+      right: 10px;
+      width: 280px;
+      z-index: 1001;
     }
-    #dropdown-menu button {
-      background: #10151c;
+
+    .dropdown-card {
+      background: linear-gradient(180deg, rgba(21,26,33,0.99), rgba(16,21,28,0.99));
+      border: 1px solid rgba(255,255,255,.08);
+      border-radius: 18px;
+      padding: 14px;
+      box-shadow: 0 18px 45px rgba(0,0,0,.55);
+      backdrop-filter: blur(12px);
+    }
+
+    .dropdown-profile-top {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      margin-bottom: 14px;
+    }
+
+    .dropdown-user-meta {
+      display: flex;
+      flex-direction: column;
+      min-width: 0;
+      flex: 1;
+    }
+
+    #dropdown-display-name {
       color: #ffffff;
-      border: 1px solid rgba(255,255,255,.12);
-      border-radius: 10px;
-      padding: 6px 12px;
-      cursor: pointer;
       font-size: 14px;
-      width: 100%;
-      transition: all 0.2s ease;
+      line-height: 1.1;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
     }
-    #dropdown-menu button:hover { background: #151a21; transform: translateY(-1px); }
+
+    #dropdown-username {
+      color: #8b949e;
+      font-size: 12px;
+      margin-top: 4px;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+
+    .dropdown-upload-btn {
+      width: 100%;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      height: 42px;
+      border-radius: 12px;
+      background: #10151c;
+      border: 1px solid rgba(255,255,255,.10);
+      color: #ffffff;
+      font-size: 13px;
+      font-weight: 600;
+      cursor: pointer;
+      transition: all .2s ease;
+      margin-bottom: 10px;
+      user-select: none;
+    }
+    .dropdown-upload-btn:hover {
+      background: #151a21;
+      transform: translateY(-1px);
+    }
+
+    .logout-btn {
+      width: 100%;
+      height: 42px;
+      border-radius: 12px;
+      border: 1px solid rgba(218,54,51,.32);
+      background: linear-gradient(180deg, rgba(218,54,51,.18), rgba(218,54,51,.10));
+      color: #ffb4b1;
+      font-size: 13px;
+      font-weight: 700;
+      cursor: pointer;
+      transition: all .2s ease;
+    }
+    .logout-btn:hover {
+      background: linear-gradient(180deg, rgba(218,54,51,.28), rgba(218,54,51,.16));
+      border-color: rgba(218,54,51,.5);
+      color: #ffd2d0;
+      transform: translateY(-1px);
+    }
+    .logout-btn:disabled {
+      opacity: .7;
+      cursor: not-allowed;
+      transform: none;
+    }
 
     .online-header { display: flex; align-items: center; gap: 8px; }
-    .online-dot { width: 10px; height: 10px; background: #3fb950; border-radius: 50%; animation: pulse 1.5s infinite; }
+    .online-dot { width: 10px; height: 10px; background: #3fb950; border-radius: 50%; animation: pulse 1.5s infinite; flex-shrink: 0; }
     @keyframes pulse {
       0% { box-shadow: 0 0 0 0 rgba(63,185,80,0.6); }
       70% { box-shadow: 0 0 0 8px rgba(63,185,80,0); }
@@ -317,29 +468,70 @@
       box-shadow: 0 10px 30px rgba(0,0,0,.6);
       z-index: 9999;
       transition: opacity 0.4s ease, transform 0.3s ease;
+      max-width: 360px;
+      word-break: break-word;
     }
     .overlay.success { background: #151a21; color: #ffffff; }
     .overlay.error { background: #da3633; }
     .overlay.info { background: #2c2c2c; }
 
     @media (max-width: 768px) {
+      body { padding: 8px; }
       .form { flex-direction: column; align-items: stretch; gap: 6px; }
       button.send-btn { width: 100%; }
       .emoji-panel { width: 90%; right: 5%; bottom: 80px; }
+      #mini-profile {
+        min-width: 0;
+        max-width: 220px;
+        padding: 9px 10px;
+      }
+      #dropdown-menu {
+        width: calc(100vw - 20px);
+        max-width: 320px;
+      }
+      .online-box {
+        max-width: 190px;
+      }
     }
   </style>
 </head>
 
 <body>
   <div id="mini-profile">
-    <span id="user-phone"></span>
+    <div class="mini-profile-avatar-wrap">
+      <img id="mini-profile-avatar" alt="Avatar do usuário">
+      <div class="mini-profile-status"></div>
+    </div>
+
+    <div class="mini-profile-info">
+      <span id="user-display-name"></span>
+      <small id="user-phone"></small>
+    </div>
+
     <svg id="arrow" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
       <polyline points="6 9 12 15 18 9"></polyline>
     </svg>
   </div>
 
   <div id="dropdown-menu">
-    <button id="logout">Sair</button>
+    <div class="dropdown-card">
+      <div class="dropdown-profile-top">
+        <img id="dropdown-avatar" alt="Avatar do usuário">
+        <div class="dropdown-user-meta">
+          <strong id="dropdown-display-name"></strong>
+          <span id="dropdown-username"></span>
+        </div>
+      </div>
+
+      <label class="dropdown-upload-btn" for="profile-avatar-input">
+        Trocar foto
+      </label>
+      <input type="file" id="profile-avatar-input" accept="image/png,image/jpeg,image/webp" hidden>
+
+      <button id="logout" class="logout-btn">
+        <span>Sair da conta</span>
+      </button>
+    </div>
   </div>
 
   <audio id="messageSound" src="message.mp3" preload="auto"></audio>
@@ -385,18 +577,18 @@
     let currentRoom = null;
     let currentOther = null;
 
-    // reply state
-    // ✅ whisper_to: quando o reply vem de um sussurro, guardamos quem deve receber
-    let replyState = null; // { id, preview: {...}, whisper_to?: string|null }
+    let replyState = null;
     let lastRenderedElements = [];
 
-    // typing
     let typingDebounceTimer = null;
     let lastTypingSentAt = 0;
 
-    // -----------------------------
-    // ✅ Badge Title (NUMERO)
-    // -----------------------------
+    let currentProfile = {
+      username: loggedUser,
+      display_name: loggedUser,
+      avatar_url: null
+    };
+
     const BASE_TITLE = "Página Inicial - Workday";
     const SEEN_KEY = "wd_lastSeenAt";
     const BADGE_KEY = "wd_badgeCount";
@@ -420,7 +612,6 @@
     }
 
     function markAllSeen() {
-      // quando a aba volta a ficar visível/focada, zera o badge e marca "visto"
       setBadgeTitle(0);
       setSeenAt(new Date());
     }
@@ -435,9 +626,7 @@
     }
 
     function bumpBadgeFromMessages(messages, mode) {
-      // Só conta como "não lidas" se a aba NÃO estiver ativa
       if (isDocActive()) {
-        // se tá ativo, marca visto no timestamp mais recente
         const newest = getNewestCreatedAt(messages);
         if (newest) setSeenAt(newest);
         setBadgeTitle(0);
@@ -449,22 +638,17 @@
         const createdAt = new Date(m?.created_at || m?.createdAt || 0).getTime();
         if (!Number.isFinite(createdAt) || createdAt <= seenAt) return false;
 
-        // não contar mensagens do próprio usuário
         const author = m?.name || m?.sender || "";
         if (author === loggedUser) return false;
 
-        // no público: contar apenas o que você consegue ver
         if (mode === "public") {
           if (!canUserSeeMessage(m)) return false;
         }
-        // no DM: se está em outra sala, o server deveria filtrar, então ok
 
         return true;
       }).length;
 
       const current = parseInt(sessionStorage.getItem(BADGE_KEY) || "0", 10) || 0;
-      // aqui a gente usa o "unseen total desde o último visto" como badge final
-      // (em vez de somar infinito)
       setBadgeTitle(unseen > 0 ? unseen : current);
     }
 
@@ -494,6 +678,23 @@
       return String(str || "").replace(/[&<>"']/g, match => ({
         "&":"&amp;","<":"&lt;",">":"&gt;","\"":"&quot;","'":"&#039;"
       }[match]));
+    }
+
+    function svgToDataUrl(svg) {
+      return `data:image/svg+xml;charset=UTF-8,${encodeURIComponent(svg)}`;
+    }
+
+    function getDefaultAvatar(name) {
+      const initial = String(name || "?").trim().charAt(0).toUpperCase() || "?";
+      const svg = `
+        <svg xmlns="http://www.w3.org/2000/svg" width="120" height="120" viewBox="0 0 120 120">
+          <rect width="120" height="120" rx="60" fill="#10151c"/>
+          <circle cx="60" cy="60" r="59" fill="none" stroke="rgba(255,255,255,0.12)"/>
+          <text x="50%" y="54%" dominant-baseline="middle" text-anchor="middle"
+                font-family="Segoe UI, Arial, sans-serif" font-size="44" font-weight="700" fill="#e6edf3">${initial}</text>
+        </svg>
+      `;
+      return svgToDataUrl(svg);
     }
 
     function highlightMentions(text) {
@@ -536,6 +737,7 @@
     }
 
     const emojis = ["😀","😁","😂","🤣","😃","😄","😅","😆","😉","😊","😍","🥰","😘","😎","🤔","😢","😭","😡","🔥","👍","👎","👏","🙌","💪","🎉","❤️","💔","💯","✔️","⚡"];
+
     function loadEmojis() {
       const panel = document.getElementById("emojiPanel");
       panel.innerHTML = "";
@@ -553,7 +755,96 @@
     }
     loadEmojis();
 
-    // ---------- Reply UI ----------
+    function applyProfileToUI(profile) {
+      const finalProfile = {
+        username: profile?.username || loggedUser,
+        display_name: profile?.display_name || loggedUser,
+        avatar_url: profile?.avatar_url || null
+      };
+
+      currentProfile = finalProfile;
+
+      const avatar = finalProfile.avatar_url || getDefaultAvatar(finalProfile.display_name);
+
+      document.getElementById("user-display-name").textContent = finalProfile.display_name;
+      document.getElementById("user-phone").textContent = `@${finalProfile.username}`;
+
+      document.getElementById("dropdown-display-name").textContent = finalProfile.display_name;
+      document.getElementById("dropdown-username").textContent = `@${finalProfile.username}`;
+
+      document.getElementById("mini-profile-avatar").src = avatar;
+      document.getElementById("dropdown-avatar").src = avatar;
+    }
+
+    async function loadProfile() {
+      try {
+        const res = await fetch(`/api/profile?username=${encodeURIComponent(loggedUser)}`);
+        const data = await res.json();
+
+        if (!res.ok || !data.success) {
+          applyProfileToUI({
+            username: loggedUser,
+            display_name: loggedUser,
+            avatar_url: null
+          });
+          return;
+        }
+
+        applyProfileToUI(data.profile);
+      } catch {
+        applyProfileToUI({
+          username: loggedUser,
+          display_name: loggedUser,
+          avatar_url: null
+        });
+      }
+    }
+
+    async function saveProfile(profilePatch) {
+      const payload = {
+        username: loggedUser,
+        display_name: profilePatch?.display_name || currentProfile.display_name || loggedUser,
+        avatar_url: typeof profilePatch?.avatar_url === "undefined"
+          ? currentProfile.avatar_url
+          : profilePatch.avatar_url
+      };
+
+      const res = await fetch("/api/profile", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json"
+        },
+        body: JSON.stringify(payload)
+      });
+
+      const data = await res.json();
+
+      if (!res.ok || !data.success) {
+        throw new Error(data.message || "Erro ao salvar perfil");
+      }
+
+      applyProfileToUI(data.profile);
+    }
+
+    async function uploadProfileAvatar(file) {
+      const formData = new FormData();
+      formData.append("file", file);
+      formData.append("username", loggedUser);
+
+      const res = await fetch("/api/profile-upload", {
+        method: "POST",
+        body: formData
+      });
+
+      const data = await res.json();
+
+      if (!res.ok || !data.success) {
+        throw new Error(data.message || "Erro ao enviar avatar");
+      }
+
+      return data.url;
+    }
+
     function renderReplyBar() {
       const bar = document.getElementById("replyBar");
       const txt = document.getElementById("replyBarText");
@@ -588,7 +879,6 @@
       const author = msg.name || msg.sender || "Desconhecido";
       const createdAt = msg.created_at || null;
 
-      // ✅ Se o reply veio de um sussurro no chat público, travamos o destino do reply
       let whisperTo = null;
       if (msg.to !== null && msg.to !== undefined) {
         if (msg.to === loggedUser) whisperTo = msg.name || null;
@@ -624,7 +914,6 @@
       showOverlay("Reply cancelado.", "info");
     });
 
-    // ---------- PASTE DE IMAGEM ----------
     document.addEventListener("DOMContentLoaded", () => {
       const contentInput = document.getElementById("content");
       if (!contentInput) return;
@@ -670,7 +959,6 @@
       }
     }
 
-    // ---------- Comandos ----------
     function parseWhisper(text) {
       if (text.startsWith("/s ")) {
         const match = text.match(/^\/s\s+@(\w+)\s+(.+)$/);
@@ -714,7 +1002,6 @@
       return /^\/sair\s*$/.test(text);
     }
 
-    // ---------- Typing (CORRIGIDO) ----------
     async function sendTyping(isTyping) {
       if (!loggedUser) return;
 
@@ -807,7 +1094,6 @@
       }
     }
 
-    // ---------- Render helpers ----------
     function buildReplyPreviewHTML(preview) {
       if (!preview || typeof preview !== "object") return "";
       const name = preview.name || "";
@@ -820,7 +1106,6 @@
       `;
     }
 
-    // ---------- Load public ----------
     async function loadPublicMessages(options = {}) {
       const { forceScrollBottom = false } = options;
 
@@ -830,7 +1115,6 @@
 
         const visibleMessages = Array.isArray(data) ? data.filter(msg => canUserSeeMessage(msg)) : [];
 
-        // 🔔 badge: atualiza com base no que chegou desde o último "visto"
         bumpBadgeFromMessages(visibleMessages, "public");
 
         if (visibleMessages.length) {
@@ -839,7 +1123,7 @@
           if (lastMessageId && lastVisible.id !== lastMessageId) {
             const mentioned = lastVisible.content?.includes("@" + loggedUser);
             if (lastVisible.name !== loggedUser || mentioned) {
-              document.getElementById("messageSound").play();
+              document.getElementById("messageSound").play().catch(() => {});
             }
           }
           lastMessageId = lastVisible.id;
@@ -855,7 +1139,7 @@
         lastRenderedElements = [];
 
         visibleMessages.forEach(msg => {
-          const isWhisper = msg.to !== null;
+          const isWhisper = msg.to !== null && msg.to !== undefined;
 
           const div = document.createElement('div');
           div.className = 'message' + (isWhisper ? ' whisper' : '');
@@ -864,7 +1148,7 @@
           const color = getColorFromName(msg.name);
 
           const contentHTML = msg.image_url
-            ? `<a href="${escapeHTML(msg.image_url)}" target="_blank" style="color:#58a6ff">🖼 Imagem</a>`
+            ? `<a href="${escapeHTML(msg.image_url)}" target="_blank" style="color:#58a6ff">🖼 Imagem</a>${msg.content && msg.content !== "🖼 Imagem" ? `<div style="margin-top:6px;">${highlightMentions(msg.content)}</div>` : ""}`
             : highlightMentions(msg.content);
 
           const replyHTML = buildReplyPreviewHTML(msg.reply_preview);
@@ -891,7 +1175,6 @@
           box.scrollTop = previousScrollTop + heightDiff;
         }
 
-        // se você está no fim e a aba tá ativa, considera "visto"
         if (isDocActive() && (distanceFromBottom < 80 || forceScrollBottom)) {
           const newest = getNewestCreatedAt(visibleMessages);
           if (newest) setSeenAt(newest);
@@ -902,7 +1185,6 @@
       }
     }
 
-    // ---------- Load DM ----------
     async function loadDmMessages(options = {}) {
       const { forceScrollBottom = false } = options;
       if (!currentRoom) return;
@@ -912,7 +1194,6 @@
         const data = await res.json();
         const msgs = Array.isArray(data) ? data : [];
 
-        // 🔔 badge: também conta DM não lida quando a aba não tá ativa
         bumpBadgeFromMessages(msgs, "dm");
 
         const box = document.getElementById('messages');
@@ -974,7 +1255,6 @@
       return loadPublicMessages(options);
     }
 
-    // ---------- DM create/enter/leave ----------
     async function createRoom(target, room) {
       if (target === loggedUser) {
         showOverlay("Você precisa marcar OUTRO usuário para criar uma sala. Ex: /c @fulano sala123", "error");
@@ -1043,7 +1323,6 @@
         await loadMessages({ forceScrollBottom: true });
         showOverlay(`Entrou na sala "${currentRoom}" ✅`, "success");
 
-        // ao entrar, se a aba tá ativa, zera badge
         if (isDocActive()) markAllSeen();
       } catch {
         showOverlay("Erro ao entrar na sala ❌", "error");
@@ -1080,20 +1359,15 @@
       if (isDocActive()) markAllSeen();
     }
 
-    // ---------- Helpers (pra não “sumir” msg em erro) ----------
     async function safeReadJson(res) {
       try { return await res.json(); } catch { return null; }
     }
 
-    // ---------- Send ----------
     async function sendPublicMessage(text) {
       const contentInput = document.getElementById('content');
 
-      // parse normal /s
       let { to, content } = parseWhisper(text);
 
-      // ✅ CORREÇÃO: se o reply veio de um sussurro e você não digitou /s,
-      // então envia automaticamente como sussurro para a mesma pessoa
       if (!to && replyState?.whisper_to) {
         to = replyState.whisper_to;
       }
@@ -1123,7 +1397,6 @@
     async function sendDmMessage(text) {
       const contentInput = document.getElementById('content');
 
-      // payload base
       const basePayload = {
         room: currentRoom,
         sender: loggedUser,
@@ -1131,26 +1404,22 @@
         image_url: pendingImageUrl
       };
 
-      // tenta com reply (se existir)
       const withReplyPayload = {
         ...basePayload,
         reply_to: replyState?.id ?? null,
         reply_preview: replyState?.preview ?? null,
       };
 
-      // 1) tenta enviar com reply
       let res = await fetch("/api/dm/messages", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(withReplyPayload)
       });
 
-      // 2) se falhar, reenvia sem reply (pra não sumir a mensagem)
       if (!res.ok) {
         const errData = await safeReadJson(res);
         const errMsg = errData?.message || errData?.error || "";
 
-        // só faz fallback se tinha reply
         if (replyState?.id || replyState?.preview) {
           res = await fetch("/api/dm/messages", {
             method: "POST",
@@ -1161,21 +1430,19 @@
           if (!res.ok) {
             const err2 = await safeReadJson(res);
             showOverlay(`Falha ao enviar no privado ❌ ${err2?.message || err2?.error || ""}`, "error");
-            return; // não limpa input
+            return;
           }
 
-          // enviou sem reply
           showOverlay(
             "Seu servidor não aceitou reply no privado. Enviei a mensagem sem reply. (Precisa adicionar colunas no DM pra suportar.)",
             "info"
           );
         } else {
           showOverlay(`Falha ao enviar no privado ❌ ${errMsg}`, "error");
-          return; // não limpa input
+          return;
         }
       }
 
-      // sucesso (com reply ou fallback)
       contentInput.value = '';
       pendingImageUrl = null;
       clearReplySelection();
@@ -1264,7 +1531,6 @@
       }
     }
 
-    // ---------- Online (CORRIGIDO) ----------
     async function updateOnlineStatus() {
       if (!loggedUser) return;
 
@@ -1288,17 +1554,15 @@
       } catch {}
     }
 
-    // ---------- Init ----------
     document.addEventListener("DOMContentLoaded", () => {
       const miniProfile = document.getElementById("mini-profile");
       const dropdownMenu = document.getElementById("dropdown-menu");
       const arrow = document.getElementById("arrow");
       const contentInput = document.getElementById("content");
+      const avatarInput = document.getElementById("profile-avatar-input");
 
-      document.getElementById("user-phone").textContent = loggedUser;
-
-      // ✅ inicia badge com o que tiver salvo
       restoreBadgeOnLoad();
+      loadProfile();
 
       miniProfile.onclick = () => {
         const open = dropdownMenu.style.display === "block";
@@ -1313,8 +1577,33 @@
         }
       });
 
+      avatarInput.addEventListener("change", async (e) => {
+        const file = e.target.files?.[0];
+        if (!file) return;
+
+        try {
+          showOverlay("Enviando foto de perfil...", "info");
+          const url = await uploadProfileAvatar(file);
+          await saveProfile({ avatar_url: url });
+          showOverlay("Foto de perfil atualizada com sucesso.", "success");
+        } catch (err) {
+          showOverlay(err.message || "Erro ao atualizar foto.", "error");
+        } finally {
+          avatarInput.value = "";
+        }
+      });
+
       document.getElementById("logout").onclick = async () => {
+        const confirmed = confirm("Tem certeza que deseja sair da conta?");
+        if (!confirmed) return;
+
+        const btn = document.getElementById("logout");
+
         try { await sendTyping(false); } catch {}
+
+        btn.disabled = true;
+        btn.innerHTML = "<span>Saindo...</span>";
+
         sessionStorage.clear();
         window.location.href = "index.html";
       };
