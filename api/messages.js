@@ -1,4 +1,3 @@
-// api/message.js  (recomendo renomear para api/messages.js)
 export default async function handler(req, res) {
   const SUPABASE_URL = process.env.SUPABASE_URL;
   const SUPABASE_ANON_KEY = process.env.SUPABASE_ANON_KEY;
@@ -8,6 +7,39 @@ export default async function handler(req, res) {
   }
 
   const endpoint = `${SUPABASE_URL}/rest/v1/messages`;
+  const usersEndpoint = `${SUPABASE_URL}/rest/v1/users`;
+
+  function buildInFilter(values) {
+    return values
+      .map(v => `"${String(v).replace(/"/g, '\\"')}"`)
+      .join(",");
+  }
+
+  async function getAdminMap(usernames) {
+    const cleanNames = Array.from(new Set((usernames || []).filter(Boolean)));
+    if (!cleanNames.length) return {};
+
+    const response = await fetch(
+      `${usersEndpoint}?select=username,is_admin&username=in.(${encodeURIComponent(buildInFilter(cleanNames))})`,
+      {
+        headers: {
+          apikey: SUPABASE_ANON_KEY,
+          Authorization: `Bearer ${SUPABASE_ANON_KEY}`,
+        },
+      }
+    );
+
+    const users = await response.json();
+    const map = {};
+
+    if (Array.isArray(users)) {
+      users.forEach(user => {
+        map[user.username] = !!user.is_admin;
+      });
+    }
+
+    return map;
+  }
 
   if (req.method === "GET") {
     try {
@@ -19,7 +51,20 @@ export default async function handler(req, res) {
       });
 
       const data = await response.json();
-      return res.status(response.status).json(data);
+
+      if (!Array.isArray(data)) {
+        return res.status(response.status).json(data);
+      }
+
+      const usernames = data.map(msg => msg.name).filter(Boolean);
+      const adminMap = await getAdminMap(usernames);
+
+      const enriched = data.map(msg => ({
+        ...msg,
+        is_admin: !!adminMap[msg.name]
+      }));
+
+      return res.status(response.status).json(enriched);
     } catch (err) {
       return res.status(500).json({ error: err.message });
     }
@@ -31,8 +76,6 @@ export default async function handler(req, res) {
       content,
       image_url,
       to = null,
-
-      // reply:
       reply_to = null,
       reply_preview = null,
     } = req.body || {};
@@ -41,23 +84,24 @@ export default async function handler(req, res) {
       return res.status(400).json({ error: "Missing fields" });
     }
 
-    // helper: valida se o usuário pode responder aquela msg (whisper)
     async function canReplyToMessage(original) {
       if (!original) return false;
-      if (!original.to) return true; // msg pública
-      return original.to === name || original.name === name; // whisper: só remetente/destinatário
+      if (!original.to) return true;
+      return original.to === name || original.name === name;
     }
 
-    // monta preview no backend (preferível)
     async function buildReplyPreviewFromDb(id) {
       if (!id) return null;
 
-      const resp = await fetch(`${endpoint}?select=id,name,content,image_url,to,created_at&id=eq.${encodeURIComponent(id)}&limit=1`, {
-        headers: {
-          apikey: SUPABASE_ANON_KEY,
-          Authorization: `Bearer ${SUPABASE_ANON_KEY}`,
-        },
-      });
+      const resp = await fetch(
+        `${endpoint}?select=id,name,content,image_url,to,created_at&id=eq.${encodeURIComponent(id)}&limit=1`,
+        {
+          headers: {
+            apikey: SUPABASE_ANON_KEY,
+            Authorization: `Bearer ${SUPABASE_ANON_KEY}`,
+          },
+        }
+      );
 
       const arr = await resp.json();
       const original = Array.isArray(arr) && arr.length ? arr[0] : null;
@@ -89,14 +133,11 @@ export default async function handler(req, res) {
         if (built) {
           finalReplyPreview = built;
         } else {
-          // fallback: aceita o que o front mandou (se vier)
           finalReplyPreview = reply_preview && typeof reply_preview === "object" ? reply_preview : null;
-          // se nem preview tem, remove reply_to pra não ficar “quebrado”
           if (!finalReplyPreview) finalReplyTo = null;
         }
       }
     } catch {
-      // se falhar a busca, fallback no preview do front
       finalReplyPreview = reply_preview && typeof reply_preview === "object" ? reply_preview : null;
       if (!finalReplyPreview) finalReplyTo = null;
     }
