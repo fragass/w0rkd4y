@@ -777,6 +777,54 @@
         .trim();
     }
 
+    async function runAdminClearAll() {
+      if (!currentUserIsAdmin) {
+        showOverlay("Apenas admins podem usar /clear all", "error");
+        return false;
+      }
+
+      const confirmed = prompt('⚠️ Isso vai apagar TODO o chat público, DMs, salas privadas e imagens.\n\nDigite CLEAR ALL para confirmar:');
+      if (confirmed !== "CLEAR ALL") {
+        showOverlay("Clear cancelado.", "info");
+        return false;
+      }
+
+      const res = await fetch("/api/admin/clear", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json"
+        },
+        body: JSON.stringify({
+          username: loggedUser,
+          scope: "all"
+        })
+      });
+
+      const data = await safeReadJson(res);
+
+      if (!res.ok || !data?.success) {
+        throw new Error(data?.message || "Falha ao executar /clear all");
+      }
+
+      replyState = null;
+      pendingImageUrl = null;
+      clearReplySelection();
+
+      chatMode = "public";
+      currentRoom = null;
+      currentOther = null;
+      setHeader();
+      clearTypingUI();
+
+      document.getElementById("messages").innerHTML = "";
+      document.getElementById("content").value = "";
+
+      await loadMessages({ forceScrollBottom: true });
+
+      showOverlay("Panic clear executado com sucesso.", "success");
+      return true;
+    }
+
     window.addEventListener("focus", markAllSeen);
     document.addEventListener("visibilitychange", () => {
       if (document.visibilityState === "visible") markAllSeen();
@@ -1180,6 +1228,10 @@
       return /^\/sair\s*$/.test(text);
     }
 
+    function isClearAllCommand(text) {
+      return /^\/clear\s+all\s*$/i.test(String(text || "").trim());
+    }
+
     async function sendTyping(isTyping) {
       if (!loggedUser) return;
 
@@ -1390,13 +1442,13 @@
           const date = new Date(m.created_at).toLocaleString('pt-BR');
           const color = getColorFromName(m.sender);
 
-const dmContentHTML = m.image_url
-  ? `<a href="${escapeHTML(m.image_url)}" target="_blank" style="color:#58a6ff">🖼 Imagem</a>${
-      m.message && m.message !== "🖼 Imagem"
-        ? `<div style="margin-top:6px;">${highlightMentions(m.message)}</div>`
-        : ""
-    }`
-  : highlightMentions(m.message || "");
+          const dmContentHTML = m.image_url
+            ? `<a href="${escapeHTML(m.image_url)}" target="_blank" style="color:#58a6ff">🖼 Imagem</a>${
+                m.message && m.message !== "🖼 Imagem"
+                  ? `<div style="margin-top:6px;">${highlightMentions(m.message)}</div>`
+                  : ""
+              }`
+            : highlightMentions(m.message || "");
 
           const replyHTML = buildReplyPreviewHTML(m.reply_preview);
 
@@ -1691,6 +1743,20 @@ const dmContentHTML = m.image_url
         return;
       }
 
+      if (isClearAllCommand(text)) {
+        contentInput.value = "";
+        onUserTyping();
+
+        try {
+          await sendTyping(false);
+          await runAdminClearAll();
+        } catch (e) {
+          console.error("Erro no /clear all:", e);
+          showOverlay(e.message || "Falha ao executar /clear all", "error");
+        }
+        return;
+      }
+
       if (!text && !pendingImageUrl) return;
 
       isSending = true;
@@ -1823,5 +1889,3 @@ const dmContentHTML = m.image_url
   </script>
 </body>
 </html>
-
-
