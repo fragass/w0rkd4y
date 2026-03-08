@@ -12,7 +12,6 @@
 - [Como rodar](#como-rodar)
 - [Segurança e limitações atuais](#segurança-e-limitações-atuais)
 - [Roadmap sugerido](#roadmap-sugerido)
-- [Créditos](#Créditos)
 # S1mpl3s v1.0.2026.03.07 — Final Build by fragass
 
 Documentação final e completa do projeto **w0rkd4y**.
