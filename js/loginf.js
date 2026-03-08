@@ -20,7 +20,7 @@ document.getElementById("loginForm").addEventListener("submit", async (e) => {
       sessionStorage.setItem("loggedUser", result.user);
       sessionStorage.setItem("isAdmin", result.isAdmin ? "true" : "false");
 
-      window.location.href = "m3yxe8u27wpoovbz.html";
+      window.location.href = "8617a543f74d88b440f5ba33e1713f063665240f.html";
     } else {
       document.getElementById("errorMsg").textContent =
         result.message || "Usuário ou senha inválidos!";
@@ -32,3 +32,4 @@ document.getElementById("loginForm").addEventListener("submit", async (e) => {
       "Erro ao conectar com o servidor.";
   }
 });
+
