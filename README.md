@@ -595,12 +595,5 @@ Este README foi escrito como documentação final do projeto:
 - Implementar rate limit e validações adicionais de payload.
 - Criar testes automatizados para APIs.
 - Renomear arquivo principal do chat para nome semântico.
-**S1mpl3s v1.0.2026.03.07 — Final Build by fragass**
-
----
-
-## Créditos
-## 12) Créditos
-
-Projeto feito por **fragass**.
-Projeto por **fragass**.
+  
+**v1.0.2026.03.07 — Final Build by fragass**
