@@ -47,6 +47,78 @@ const BASE_TITLE = "Página Inicial - Workday";
 const SEEN_KEY = "wd_lastSeenAt";
 const BADGE_KEY = "wd_badgeCount";
 
+/* =========================
+   MODAIS
+========================= */
+
+let logoutBtn = null;
+let logoutModal = null;
+let cancelLogoutBtn = null;
+let confirmLogoutBtn = null;
+
+let clearAllModal = null;
+let clearAllCancelBtn = null;
+let clearAllConfirmBtn = null;
+let clearAllPendingResolver = null;
+
+function openLogoutModal() {
+  if (!logoutModal) return false;
+  logoutModal.classList.add("show");
+  logoutModal.setAttribute("aria-hidden", "false");
+  document.body.classList.add("modal-open");
+  return true;
+}
+
+function closeLogoutModal() {
+  if (!logoutModal) return;
+  logoutModal.classList.remove("show");
+  logoutModal.setAttribute("aria-hidden", "true");
+  document.body.classList.remove("modal-open");
+}
+
+function openClearAllModal() {
+  if (!clearAllModal) return false;
+
+  clearAllConfirmBtn.disabled = false;
+  clearAllCancelBtn.disabled = false;
+  clearAllConfirmBtn.textContent = "Limpar tudo";
+
+  clearAllModal.classList.add("show");
+  clearAllModal.setAttribute("aria-hidden", "false");
+  document.body.classList.add("clearall-open");
+  return true;
+}
+
+function closeClearAllModal() {
+  if (!clearAllModal) return;
+
+  clearAllModal.classList.remove("show");
+  clearAllModal.setAttribute("aria-hidden", "true");
+  document.body.classList.remove("clearall-open");
+}
+
+function askClearAllConfirmation() {
+  return new Promise((resolve) => {
+    if (!clearAllModal || !clearAllCancelBtn || !clearAllConfirmBtn) {
+      const confirmed = prompt(
+        '⚠️ Isso vai apagar TODO o chat público, DMs, salas privadas e imagens.\n\nDigite CLEAR ALL para confirmar:'
+      );
+      resolve(confirmed === "CLEAR ALL");
+      return;
+    }
+
+    clearAllPendingResolver = resolve;
+    openClearAllModal();
+  });
+}
+
+function resolveClearAllModal(value) {
+  if (typeof clearAllPendingResolver === "function") {
+    clearAllPendingResolver(value);
+  }
+  clearAllPendingResolver = null;
+}
+
 function setBadgeTitle(count) {
   const n = Math.max(0, parseInt(count || 0, 10) || 0);
   document.title = n > 0 ? `(${n}) ${BASE_TITLE}` : BASE_TITLE;
@@ -128,10 +200,16 @@ async function runAdminClearAll() {
     return false;
   }
 
-  const confirmed = prompt('⚠️ Isso vai apagar TODO o chat público, DMs, salas privadas e imagens.\n\nDigite CLEAR ALL para confirmar:');
-  if (confirmed !== "CLEAR ALL") {
+  const confirmed = await askClearAllConfirmation();
+  if (!confirmed) {
     showOverlay("Clear cancelado.", "info");
     return false;
+  }
+
+  if (clearAllConfirmBtn && clearAllCancelBtn) {
+    clearAllConfirmBtn.disabled = true;
+    clearAllCancelBtn.disabled = true;
+    clearAllConfirmBtn.textContent = "Limpando...";
   }
 
   const res = await apiFetch("admin/clear", {
@@ -148,6 +226,7 @@ async function runAdminClearAll() {
   const data = await safeReadJson(res);
 
   if (!res.ok || !data?.success) {
+    closeClearAllModal();
     throw new Error(data?.message || "Falha ao executar /clear all");
   }
 
@@ -166,6 +245,7 @@ async function runAdminClearAll() {
 
   await loadMessages({ forceScrollBottom: true });
 
+  closeClearAllModal();
   showOverlay("❗ Chat completamente limpo. Mensagens, imagens e salas privadas foram removidas.", "success");
   return true;
 }
@@ -1203,20 +1283,99 @@ document.addEventListener("DOMContentLoaded", () => {
     }
   });
 
-  document.getElementById("logout").onclick = async () => {
-    const confirmed = confirm("Tem certeza que deseja sair da conta?");
-    if (!confirmed) return;
+  /* =========================
+     LOGOUT MODAL
+  ========================= */
 
-    const btn = document.getElementById("logout");
+  logoutBtn = document.getElementById("logout");
+  logoutModal = document.getElementById("logout-modal");
+  cancelLogoutBtn = document.getElementById("cancel-logout");
+  confirmLogoutBtn = document.getElementById("confirm-logout");
 
-    try { await sendTyping(false); } catch {}
+  if (logoutBtn) {
+    logoutBtn.onclick = () => {
+      const opened = openLogoutModal();
+      if (!opened) {
+        const confirmed = confirm("Tem certeza que deseja sair da conta?");
+        if (!confirmed) return;
+        sessionStorage.clear();
+        window.location.href = "index.html";
+      }
+    };
+  }
 
-    btn.disabled = true;
-    btn.innerHTML = "<span>Saindo...</span>";
+  if (cancelLogoutBtn) {
+    cancelLogoutBtn.onclick = () => {
+      closeLogoutModal();
+    };
+  }
 
-    sessionStorage.clear();
-    window.location.href = "index.html";
-  };
+  if (logoutModal) {
+    logoutModal.addEventListener("click", (e) => {
+      if (e.target.classList.contains("confirm-modal-backdrop")) {
+        closeLogoutModal();
+      }
+    });
+  }
+
+  if (confirmLogoutBtn) {
+    confirmLogoutBtn.onclick = async () => {
+      try { await sendTyping(false); } catch {}
+
+      if (logoutBtn) logoutBtn.disabled = true;
+      confirmLogoutBtn.disabled = true;
+
+      if (logoutBtn) logoutBtn.innerHTML = "<span>Saindo...</span>";
+      confirmLogoutBtn.textContent = "Saindo...";
+
+      sessionStorage.clear();
+      window.location.href = "index.html";
+    };
+  }
+
+  /* =========================
+     CLEAR ALL MODAL
+  ========================= */
+
+  clearAllModal = document.getElementById("clearall-modal");
+  clearAllCancelBtn = document.getElementById("clearall-cancel");
+  clearAllConfirmBtn = document.getElementById("clearall-confirm");
+
+  if (clearAllCancelBtn) {
+    clearAllCancelBtn.onclick = () => {
+      closeClearAllModal();
+      resolveClearAllModal(false);
+    };
+  }
+
+  if (clearAllModal) {
+    clearAllModal.addEventListener("click", (e) => {
+      if (e.target.classList.contains("clearall-backdrop")) {
+        closeClearAllModal();
+        resolveClearAllModal(false);
+      }
+    });
+  }
+
+  if (clearAllConfirmBtn) {
+    clearAllConfirmBtn.onclick = () => {
+      resolveClearAllModal(true);
+    };
+  }
+
+  document.addEventListener("keydown", (e) => {
+    if (e.key !== "Escape") return;
+
+    if (logoutModal && logoutModal.classList.contains("show")) {
+      closeLogoutModal();
+      return;
+    }
+
+    if (clearAllModal && clearAllModal.classList.contains("show")) {
+      closeClearAllModal();
+      resolveClearAllModal(false);
+    }
+  });
 
   contentInput.addEventListener("keydown", e => {
     if (e.key === "Enter" && !e.shiftKey) {
