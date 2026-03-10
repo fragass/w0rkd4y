@@ -166,6 +166,35 @@
     .message:hover { background: #1b2028; transform: translateY(-1px); }
     .message.selected-reply { border-color: rgba(88,166,255,0.8); box-shadow: 0 0 0 1px rgba(88,166,255,0.18); }
 
+    .message-row {
+      display: flex;
+      gap: 10px;
+      align-items: flex-start;
+    }
+
+    .message-avatar {
+      width: 38px;
+      height: 38px;
+      min-width: 38px;
+      min-height: 38px;
+      border-radius: 50%;
+      object-fit: cover;
+      border: 1px solid rgba(255,255,255,.10);
+      background: #10151c;
+      box-shadow: 0 4px 12px rgba(0,0,0,.22);
+    }
+
+    .message-main {
+      flex: 1;
+      min-width: 0;
+    }
+
+    .message-user-block {
+      display: flex;
+      align-items: center;
+      min-width: 0;
+    }
+
     .message-header { display: flex; justify-content: space-between; gap: 10px; margin-bottom: 4px; }
     .username { font-weight: 600; color: #ffffff; }
     .timestamp { font-size: 11px; color: #8b949e; white-space: nowrap; }
@@ -849,3 +878,4 @@ body.clearall-open {
     width: 100%;
   }
 }
+
