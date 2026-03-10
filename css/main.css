@@ -558,12 +558,15 @@
     }
     .message.whisper:hover { background: #332d46; }
 
-    .message.dm {
-      background: #0f1a13;
-      border: 1px solid rgba(63,185,80,0.35);
-      color: #d7ffe6;
-    }
-    .message.dm:hover { background: #14261b; }
+.message.dm {
+  background: #101826;
+  border: 1px solid rgba(88,166,255,0.35);
+  color: #dce7ff;
+}
+
+.message.dm:hover {
+  background: #142036;
+}
 
     .overlay {
       position: fixed;
@@ -878,4 +881,5 @@ body.clearall-open {
     width: 100%;
   }
 }
+
 
