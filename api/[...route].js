@@ -35,9 +35,6 @@ function getRouteParts(req) {
       .filter(Boolean);
   }
 
-  // Fallback real pela URL acessada
-  // Ex.: /api/login -> ["login"]
-  // Ex.: /api/dm/messages -> ["dm", "messages"]
   const rawUrl = req.url || "";
   const pathname = rawUrl.split("?")[0] || "";
   const withoutApi = pathname.replace(/^\/api\/?/, "");
@@ -148,6 +145,30 @@ async function getAdminMapFromUsers(usernames, useService = false) {
   return map;
 }
 
+async function getProfileMap(usernames, useService = false) {
+  const cleanNames = Array.from(new Set((usernames || []).filter(Boolean)));
+  if (!cleanNames.length) return {};
+
+  const client = useService ? supabaseService : supabaseAnon;
+
+  const { data, error } = await client
+    .from("user_profiles")
+    .select("username, display_name, avatar_url")
+    .in("username", cleanNames);
+
+  if (error || !Array.isArray(data)) return {};
+
+  const map = {};
+  data.forEach(profile => {
+    map[profile.username] = {
+      display_name: profile.display_name || profile.username,
+      avatar_url: profile.avatar_url || null,
+    };
+  });
+
+  return map;
+}
+
 async function isAdminUser(username) {
   const { data, error } = await supabaseService
     .from("users")
@@ -161,7 +182,7 @@ async function isAdminUser(username) {
 
 async function getChannelByRoom(room) {
   const { data, error } = await supabaseService
-    .from("private_channels")
+    .from(PRIVATE_CHANNELS_TABLE)
     .select("id, room, user1, user2, last_activity")
     .eq("room", room)
     .maybeSingle();
@@ -174,7 +195,7 @@ async function cleanupExpiredPrivateChannels() {
   const cutoff = new Date(Date.now() - DM_TTL_MINUTES * 60_000).toISOString();
 
   const { data: expired, error } = await supabaseAnon
-    .from("private_channels")
+    .from(PRIVATE_CHANNELS_TABLE)
     .select("id")
     .lt("last_activity", cutoff);
 
@@ -182,8 +203,34 @@ async function cleanupExpiredPrivateChannels() {
 
   const ids = expired.map(x => x.id);
 
-  await supabaseAnon.from("private_messages").delete().in("channel_id", ids);
-  await supabaseAnon.from("private_channels").delete().in("id", ids);
+  await supabaseAnon.from(PRIVATE_MESSAGES_TABLE).delete().in("channel_id", ids);
+  await supabaseAnon.from(PRIVATE_CHANNELS_TABLE).delete().in("id", ids);
+}
+
+/* =========================
+   /api/realtime/config
+========================= */
+
+async function handleRealtimeConfig(req, res) {
+  if (req.method !== "GET") {
+    return sendJson(res, 405, {
+      success: false,
+      message: "Método não permitido",
+    });
+  }
+
+  if (!SUPABASE_URL || !SUPABASE_ANON_KEY) {
+    return sendJson(res, 500, {
+      success: false,
+      message: "Realtime não configurado",
+    });
+  }
+
+  return sendJson(res, 200, {
+    success: true,
+    url: SUPABASE_URL,
+    anonKey: SUPABASE_ANON_KEY,
+  });
 }
 
 /* =========================
@@ -242,7 +289,7 @@ async function handleMessages(req, res) {
   if (req.method === "GET") {
     try {
       const { data, error } = await supabaseAnon
-        .from("messages")
+        .from(PUBLIC_MESSAGES_TABLE)
         .select("*")
         .order("created_at", { ascending: true });
 
@@ -253,10 +300,13 @@ async function handleMessages(req, res) {
       const list = Array.isArray(data) ? data : [];
       const usernames = list.map(msg => msg.name).filter(Boolean);
       const adminMap = await getAdminMapFromUsers(usernames, false);
+      const profileMap = await getProfileMap(usernames, false);
 
       const enriched = list.map(msg => ({
         ...msg,
         is_admin: !!adminMap[msg.name],
+        display_name: profileMap[msg.name]?.display_name || msg.name,
+        avatar_url: profileMap[msg.name]?.avatar_url || null,
       }));
 
       return sendJson(res, 200, enriched);
@@ -291,7 +341,7 @@ async function handleMessages(req, res) {
         if (!id) return null;
 
         const { data, error } = await supabaseAnon
-          .from("messages")
+          .from(PUBLIC_MESSAGES_TABLE)
           .select("id, name, content, image_url, to, created_at")
           .eq("id", id)
           .limit(1);
@@ -346,7 +396,7 @@ async function handleMessages(req, res) {
       if (image_url) insertBody.image_url = image_url;
 
       const { error } = await supabaseAnon
-        .from("messages")
+        .from(PUBLIC_MESSAGES_TABLE)
         .insert([insertBody]);
 
       if (error) {
@@ -364,6 +414,7 @@ async function handleMessages(req, res) {
 
 /* =========================
    /api/online
+   Compatibilidade: mantido
 ========================= */
 
 async function handleOnline(req, res) {
@@ -900,7 +951,7 @@ async function handleDmCreate(req, res) {
     }
 
     const { data: existingByPair, error: pairError } = await supabaseService
-      .from("private_channels")
+      .from(PRIVATE_CHANNELS_TABLE)
       .select("id, room, user1, user2")
       .or(`and(user1.eq.${creator},user2.eq.${target}),and(user1.eq.${target},user2.eq.${creator})`)
       .limit(1);
@@ -925,7 +976,7 @@ async function handleDmCreate(req, res) {
     }
 
     const { data: createdRows, error: insertError } = await supabaseService
-      .from("private_channels")
+      .from(PRIVATE_CHANNELS_TABLE)
       .insert([
         {
           room: roomWanted,
@@ -947,7 +998,7 @@ async function handleDmCreate(req, res) {
     const createdRow = Array.isArray(createdRows) ? createdRows[0] : createdRows;
 
     try {
-      await supabaseService.from("messages").insert([
+      await supabaseService.from(PUBLIC_MESSAGES_TABLE).insert([
         {
           name: "Sistema",
           to: target,
@@ -1003,7 +1054,7 @@ async function handleDmEnter(req, res) {
     }
 
     await supabaseAnon
-      .from("private_channels")
+      .from(PRIVATE_CHANNELS_TABLE)
       .update({ last_activity: new Date().toISOString() })
       .eq("id", channel.id);
 
@@ -1040,7 +1091,7 @@ async function handleDmLeave(req, res) {
     }
 
     await supabaseAnon
-      .from("private_channels")
+      .from(PRIVATE_CHANNELS_TABLE)
       .update({ last_activity: new Date().toISOString() })
       .eq("room", room);
 
@@ -1075,7 +1126,7 @@ async function handleDmMessages(req, res) {
       if (!allowed) return sendJson(res, 403, []);
 
       const { data, error } = await supabaseService
-        .from("private_messages")
+        .from(PRIVATE_MESSAGES_TABLE)
         .select("*")
         .eq("channel_id", channel.id)
         .order("created_at", { ascending: true });
@@ -1087,10 +1138,13 @@ async function handleDmMessages(req, res) {
       const list = Array.isArray(data) ? data : [];
       const usernames = list.map(msg => msg.sender).filter(Boolean);
       const adminMap = await getAdminMapFromUsers(usernames, true);
+      const profileMap = await getProfileMap(usernames, true);
 
       const enriched = list.map(msg => ({
         ...msg,
         is_admin: !!adminMap[msg.sender],
+        display_name: profileMap[msg.sender]?.display_name || msg.sender,
+        avatar_url: profileMap[msg.sender]?.avatar_url || null,
       }));
 
       return sendJson(res, 200, enriched);
@@ -1124,7 +1178,7 @@ async function handleDmMessages(req, res) {
         if (!id) return null;
 
         const { data, error } = await supabaseService
-          .from("private_messages")
+          .from(PRIVATE_MESSAGES_TABLE)
           .select("id, sender, message, image_url, created_at, channel_id")
           .eq("id", id)
           .limit(1);
@@ -1176,7 +1230,7 @@ async function handleDmMessages(req, res) {
       };
 
       const { error: insertError } = await supabaseService
-        .from("private_messages")
+        .from(PRIVATE_MESSAGES_TABLE)
         .insert([insertBody]);
 
       if (insertError) {
@@ -1185,7 +1239,7 @@ async function handleDmMessages(req, res) {
 
       try {
         await supabaseService
-          .from("private_channels")
+          .from(PRIVATE_CHANNELS_TABLE)
           .update({ last_activity: new Date().toISOString() })
           .eq("room", room);
       } catch {}
@@ -1217,6 +1271,7 @@ async function handler(req, res) {
     });
   }
 
+  if (routeKey === "realtime/config") return handleRealtimeConfig(req, res);
   if (routeKey === "login") return handleLogin(req, res);
   if (routeKey === "messages") return handleMessages(req, res);
   if (routeKey === "online") return handleOnline(req, res);
@@ -1241,3 +1296,4 @@ module.exports.config = {
     bodyParser: false,
   },
 };
+
