@@ -35,6 +35,7 @@ let replyState = null;
 let lastRenderedElements = [];
 
 let typingDebounceTimer = null;
+let typingStopTimer = null;
 let lastTypingSentAt = 0;
 
 let currentProfile = {
@@ -46,6 +47,266 @@ let currentProfile = {
 const BASE_TITLE = "Página Inicial - Workday";
 const SEEN_KEY = "wd_lastSeenAt";
 const BADGE_KEY = "wd_badgeCount";
+
+/* =========================
+   REALTIME
+========================= */
+
+let supabaseClient = null;
+let realtimeReady = false;
+let publicRealtimeChannel = null;
+let dmRealtimeChannel = null;
+let globalPresenceChannel = null;
+const typingUsersMap = new Map();
+
+function getActiveTypingRoomKey() {
+  return chatMode === "dm" && currentRoom ? `dm:${currentRoom}` : "public";
+}
+
+function getActiveTypingChannel() {
+  return chatMode === "dm" && currentRoom ? dmRealtimeChannel : publicRealtimeChannel;
+}
+
+async function initRealtimeClient() {
+  if (supabaseClient || !window.supabase) return !!supabaseClient;
+
+  try {
+    const res = await apiFetch("realtime/config");
+    const cfg = await res.json();
+
+    if (!res.ok || !cfg?.url || !cfg?.anonKey) {
+      console.warn("Realtime config ausente ou inválida.");
+      return false;
+    }
+
+    supabaseClient = window.supabase.createClient(cfg.url, cfg.anonKey, {
+      realtime: {
+        params: {
+          eventsPerSecond: 10
+        }
+      }
+    });
+
+    realtimeReady = true;
+    return true;
+  } catch (err) {
+    console.warn("Falha ao inicializar realtime:", err);
+    realtimeReady = false;
+    return false;
+  }
+}
+
+function clearTypingUI() {
+  typingUsersMap.clear();
+  const el = document.getElementById("typingStatus");
+  if (el) el.textContent = "";
+}
+
+function setTypingUIFromMap() {
+  const el = document.getElementById("typingStatus");
+  if (!el) return;
+
+  const now = Date.now();
+  const names = [];
+
+  for (const [name, expiresAt] of typingUsersMap.entries()) {
+    if (expiresAt > now && name !== loggedUser) {
+      names.push(name);
+    }
+  }
+
+  if (!names.length) {
+    el.textContent = "";
+    return;
+  }
+
+  if (names.length === 1) {
+    el.textContent = `${names[0]} está digitando...`;
+    return;
+  }
+
+  if (names.length === 2) {
+    el.textContent = `${names[0]} e ${names[1]} estão digitando...`;
+    return;
+  }
+
+  el.textContent = `${names.slice(0, 3).join(", ")} estão digitando...`;
+}
+
+function setTypingUI(names) {
+  const el = document.getElementById("typingStatus");
+  if (!el) return;
+
+  if (!names || !names.length) { el.textContent = ""; return; }
+  if (names.length === 1) { el.textContent = `${names[0]} está digitando...`; return; }
+  if (names.length === 2) { el.textContent = `${names[0]} e ${names[1]} estão digitando...`; return; }
+  el.textContent = `${names.slice(0, 3).join(", ")} estão digitando...`;
+}
+
+function bindTypingBroadcast(channel, roomKey) {
+  if (!channel) return;
+
+  channel.on("broadcast", { event: "typing" }, ({ payload }) => {
+    if (!payload || !payload.name) return;
+    if (payload.name === loggedUser) return;
+
+    const payloadRoom = String(payload.room || "public");
+    if (payloadRoom !== String(roomKey || "public")) return;
+
+    if (payload.typing) {
+      typingUsersMap.set(payload.name, Date.now() + 2200);
+    } else {
+      typingUsersMap.delete(payload.name);
+    }
+
+    setTypingUIFromMap();
+  });
+}
+
+function renderOnlineUsersFromPresence() {
+  const el = document.getElementById("onlineUsers");
+  if (!el) return;
+
+  if (!globalPresenceChannel) {
+    el.textContent = "0";
+    return;
+  }
+
+  try {
+    const state = globalPresenceChannel.presenceState();
+    const names = Object.keys(state || {});
+    el.textContent = names.length ? names.join(", ") : "0";
+  } catch {
+    el.textContent = "0";
+  }
+}
+
+async function setupGlobalPresenceChannel() {
+  if (!realtimeReady || !supabaseClient || globalPresenceChannel) return;
+
+  globalPresenceChannel = supabaseClient.channel("presence:workday:global", {
+    config: {
+      presence: { key: loggedUser }
+    }
+  });
+
+  globalPresenceChannel
+    .on("presence", { event: "sync" }, () => {
+      renderOnlineUsersFromPresence();
+    })
+    .on("presence", { event: "join" }, () => {
+      renderOnlineUsersFromPresence();
+    })
+    .on("presence", { event: "leave" }, () => {
+      renderOnlineUsersFromPresence();
+    });
+
+  await new Promise((resolve) => {
+    globalPresenceChannel.subscribe(async (status) => {
+      if (status === "SUBSCRIBED") {
+        try {
+          await globalPresenceChannel.track({
+            name: loggedUser,
+            online_at: new Date().toISOString()
+          });
+        } catch {}
+        renderOnlineUsersFromPresence();
+        resolve();
+      } else if (status === "CHANNEL_ERROR" || status === "TIMED_OUT" || status === "CLOSED") {
+        renderOnlineUsersFromPresence();
+        resolve();
+      }
+    });
+  });
+}
+
+async function setupPublicRealtimeChannel() {
+  if (!realtimeReady || !supabaseClient) return;
+
+  if (publicRealtimeChannel) {
+    try { await supabaseClient.removeChannel(publicRealtimeChannel); } catch {}
+    publicRealtimeChannel = null;
+  }
+
+  publicRealtimeChannel = supabaseClient.channel("room:public", {
+    config: {
+      broadcast: { self: false }
+    }
+  });
+
+  bindTypingBroadcast(publicRealtimeChannel, "public");
+
+  publicRealtimeChannel.on(
+    "postgres_changes",
+    { event: "*", schema: "public", table: "messages" },
+    async () => {
+      if (chatMode === "public") {
+        await loadPublicMessages({ forceScrollBottom: true });
+      }
+    }
+  );
+
+  await new Promise((resolve) => {
+    publicRealtimeChannel.subscribe(() => resolve());
+  });
+}
+
+async function setupDmRealtimeChannel(room) {
+  if (!realtimeReady || !supabaseClient || !room) return;
+
+  if (dmRealtimeChannel) {
+    try { await supabaseClient.removeChannel(dmRealtimeChannel); } catch {}
+    dmRealtimeChannel = null;
+  }
+
+  dmRealtimeChannel = supabaseClient.channel(`room:dm:${room}`, {
+    config: {
+      broadcast: { self: false }
+    }
+  });
+
+  bindTypingBroadcast(dmRealtimeChannel, `dm:${room}`);
+
+  dmRealtimeChannel.on(
+    "postgres_changes",
+    { event: "*", schema: "public", table: "private_messages" },
+    async () => {
+      if (chatMode === "dm" && currentRoom) {
+        await loadDmMessages({ forceScrollBottom: true });
+      }
+    }
+  );
+
+  await new Promise((resolve) => {
+    dmRealtimeChannel.subscribe(() => resolve());
+  });
+}
+
+async function teardownDmRealtimeChannel() {
+  if (!supabaseClient || !dmRealtimeChannel) return;
+  try {
+    await supabaseClient.removeChannel(dmRealtimeChannel);
+  } catch {}
+  dmRealtimeChannel = null;
+}
+
+async function setupRealtime() {
+  const ok = await initRealtimeClient();
+  if (!ok) return false;
+
+  await setupGlobalPresenceChannel();
+  await setupPublicRealtimeChannel();
+  renderOnlineUsersFromPresence();
+  return true;
+}
+
+function refreshOwnPresence() {
+  if (!globalPresenceChannel) return;
+  globalPresenceChannel.track({
+    name: loggedUser,
+    online_at: new Date().toISOString()
+  }).catch(() => {});
+}
 
 /* =========================
    MODAIS
@@ -234,6 +495,10 @@ async function runAdminClearAll() {
   pendingImageUrl = null;
   clearReplySelection();
 
+  if (chatMode === "dm") {
+    await teardownDmRealtimeChannel();
+  }
+
   chatMode = "public";
   currentRoom = null;
   currentOther = null;
@@ -250,9 +515,22 @@ async function runAdminClearAll() {
   return true;
 }
 
-window.addEventListener("focus", markAllSeen);
+window.addEventListener("focus", () => {
+  markAllSeen();
+  refreshOwnPresence();
+});
+
 document.addEventListener("visibilitychange", () => {
-  if (document.visibilityState === "visible") markAllSeen();
+  if (document.visibilityState === "visible") {
+    markAllSeen();
+    refreshOwnPresence();
+  }
+});
+
+window.addEventListener("beforeunload", () => {
+  if (globalPresenceChannel) {
+    globalPresenceChannel.untrack().catch(() => {});
+  }
 });
 
 const userColors = ["#58a6ff","#2ea043","#f0883e","#a371f7","#ff7b72","#1f6feb","#3fb950","#d29922","#bc8cff","#ffa657"];
@@ -284,6 +562,16 @@ function getDefaultAvatar(name) {
     </svg>
   `;
   return svgToDataUrl(svg);
+}
+
+function getMessageAvatarSrc(msg) {
+  const displayName =
+    msg?.display_name ||
+    msg?.name ||
+    msg?.sender ||
+    "Usuário";
+
+  return msg?.avatar_url || getDefaultAvatar(displayName);
 }
 
 function getAdminBadgeHTML(isAdmin) {
@@ -669,18 +957,21 @@ async function sendTyping(isTyping) {
   if (isTyping && now - lastTypingSentAt < 800) return;
   lastTypingSentAt = now;
 
-  const room = (chatMode === "dm" && currentRoom) ? currentRoom : null;
+  const channel = getActiveTypingChannel();
+  const roomKey = getActiveTypingRoomKey();
+
+  if (!channel || !realtimeReady) return;
 
   try {
-    await apiFetch("online", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
+    await channel.send({
+      type: "broadcast",
+      event: "typing",
+      payload: {
         name: loggedUser,
+        room: roomKey,
         typing: !!isTyping,
-        room,
-        typing_room: room
-      })
+        at: now
+      }
     });
   } catch {}
 }
@@ -690,68 +981,22 @@ function onUserTyping() {
   const hasText = input && input.value.trim().length > 0;
   const isFocused = document.activeElement === input;
 
+  clearTimeout(typingDebounceTimer);
+  clearTimeout(typingStopTimer);
+
   if (hasText && isFocused) {
-    clearTimeout(typingDebounceTimer);
     typingDebounceTimer = setTimeout(() => sendTyping(true), 120);
+    typingStopTimer = setTimeout(() => {
+      sendTyping(false);
+    }, 1400);
     return;
   }
+
   sendTyping(false);
 }
 
-function clearTypingUI() {
-  const el = document.getElementById("typingStatus");
-  if (el) el.textContent = "";
-}
-
-function setTypingUI(names) {
-  const el = document.getElementById("typingStatus");
-  if (!el) return;
-
-  if (!names || !names.length) { el.textContent = ""; return; }
-  if (names.length === 1) { el.textContent = `${names[0]} está digitando...`; return; }
-  if (names.length === 2) { el.textContent = `${names[0]} e ${names[1]} estão digitando...`; return; }
-  el.textContent = `${names.slice(0, 3).join(", ")} estão digitando...`;
-}
-
 async function loadTypingStatus() {
-  try {
-    const res = await apiFetch("online");
-    const data = await res.json();
-    const users = Array.isArray(data) ? data : [];
-    const now = Date.now();
-
-    const typingUsers = users.filter(u => {
-      if (!u || !u.name) return false;
-      if (u.name === loggedUser) return false;
-
-      const isTyping =
-        u.typing === true ||
-        u.typing === 1 ||
-        u.typing === "1" ||
-        String(u.typing).toLowerCase() === "true";
-
-      if (!isTyping) return false;
-
-      const lastTypingRaw =
-        u.last_typing ?? u.lastTyping ?? u.updated_at ?? u.updatedAt ?? u.last_seen ?? u.last_seen_at;
-
-      if (!lastTypingRaw) return false;
-
-      const last = new Date(lastTypingRaw).getTime();
-      if (!Number.isFinite(last)) return false;
-
-      if (now - last > 7000) return false;
-
-      const tRoom = u.typing_room ?? u.room ?? null;
-
-      if (chatMode === "dm" && currentRoom) return tRoom === currentRoom;
-      return !tRoom;
-    });
-
-    setTypingUI(typingUsers.map(u => u.name));
-  } catch {
-    clearTypingUI();
-  }
+  setTypingUIFromMap();
 }
 
 function buildReplyPreviewHTML(preview) {
@@ -806,6 +1051,8 @@ async function loadPublicMessages(options = {}) {
 
       const date = new Date(msg.created_at).toLocaleString("pt-BR");
       const color = getColorFromName(msg.name);
+      const avatarSrc = getMessageAvatarSrc(msg);
+      const avatarAlt = escapeHTML(msg.display_name || msg.name || "Usuário");
 
       const contentHTML = msg.image_url
         ? `<a href="${escapeHTML(msg.image_url)}" target="_blank" style="color:#58a6ff">🖼 Imagem</a>${msg.content && msg.content !== "🖼 Imagem" ? `<div style="margin-top:6px;">${highlightMentions(msg.content)}</div>` : ""}`
@@ -814,12 +1061,19 @@ async function loadPublicMessages(options = {}) {
       const replyHTML = buildReplyPreviewHTML(msg.reply_preview);
 
       div.innerHTML = `
-        <div class="message-header">
-          <span class="username">${getNameWithBadgeHTML(msg.name, msg.is_admin, color)}</span>
-          <span class="timestamp">${date}</span>
+        <div class="message-row">
+          <img class="message-avatar" src="${avatarSrc}" alt="${avatarAlt}">
+          <div class="message-main">
+            <div class="message-header">
+              <div class="message-user-block">
+                <span class="username">${getNameWithBadgeHTML(msg.name, msg.is_admin, color)}</span>
+              </div>
+              <span class="timestamp">${date}</span>
+            </div>
+            ${replyHTML}
+            <div>${isWhisper ? `<strong>Sussurro:</strong> ${contentHTML}` : contentHTML}</div>
+          </div>
         </div>
-        ${replyHTML}
-        <div>${isWhisper ? `<strong>Sussurro:</strong> ${contentHTML}` : contentHTML}</div>
       `;
 
       div.addEventListener("click", () => setReplyFromMessage(msg, div));
@@ -874,6 +1128,8 @@ async function loadDmMessages(options = {}) {
 
       const date = new Date(m.created_at).toLocaleString("pt-BR");
       const color = getColorFromName(m.sender);
+      const avatarSrc = getMessageAvatarSrc(m);
+      const avatarAlt = escapeHTML(m.display_name || m.sender || "Usuário");
 
       const dmContentHTML = m.image_url
         ? `<a href="${escapeHTML(m.image_url)}" target="_blank" style="color:#58a6ff">🖼 Imagem</a>${
@@ -886,12 +1142,19 @@ async function loadDmMessages(options = {}) {
       const replyHTML = buildReplyPreviewHTML(m.reply_preview);
 
       div.innerHTML = `
-        <div class="message-header">
-          <span class="username">${getNameWithBadgeHTML(m.sender, m.is_admin, color)}</span>
-          <span class="timestamp">${date}</span>
+        <div class="message-row">
+          <img class="message-avatar" src="${avatarSrc}" alt="${avatarAlt}">
+          <div class="message-main">
+            <div class="message-header">
+              <div class="message-user-block">
+                <span class="username">${getNameWithBadgeHTML(m.sender, m.is_admin, color)}</span>
+              </div>
+              <span class="timestamp">${date}</span>
+            </div>
+            ${replyHTML}
+            <div>${dmContentHTML}</div>
+          </div>
         </div>
-        ${replyHTML}
-        <div>${dmContentHTML}</div>
       `;
 
       div.addEventListener("click", () => setReplyFromMessage(m, div));
@@ -984,6 +1247,8 @@ async function enterRoom(room) {
     currentRoom = data.channel.room;
     currentOther = data.channel.other;
 
+    await setupDmRealtimeChannel(currentRoom);
+
     setHeader();
     clearTypingUI();
     clearReplySelection();
@@ -1014,6 +1279,9 @@ async function leaveRoom() {
   } catch {}
 
   const left = currentRoom;
+
+  await teardownDmRealtimeChannel();
+
   chatMode = "public";
   currentRoom = null;
   currentOther = null;
@@ -1063,8 +1331,6 @@ async function sendPublicMessage(text) {
   contentInput.value = "";
   pendingImageUrl = null;
   clearReplySelection();
-
-  await loadMessages({ forceScrollBottom: true });
 
   if (to) showOverlay(`Sussurro enviado para @${to}`, "success");
 }
@@ -1122,8 +1388,6 @@ async function sendDmMessage(text) {
   contentInput.value = "";
   pendingImageUrl = null;
   clearReplySelection();
-
-  await loadMessages({ forceScrollBottom: true });
 }
 
 async function sendMessage() {
@@ -1221,29 +1485,14 @@ async function sendMessage() {
 }
 
 async function updateOnlineStatus() {
-  if (!loggedUser) return;
-
-  const room = (chatMode === "dm" && currentRoom) ? currentRoom : null;
-
-  try {
-    await apiFetch("online", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ name: loggedUser, room, typing_room: room })
-    });
-  } catch {}
+  refreshOwnPresence();
 }
 
 async function loadOnlineUsers() {
-  try {
-    const res = await apiFetch("online");
-    const data = await res.json();
-    document.getElementById("onlineUsers").textContent =
-      Array.isArray(data) && data.length ? data.map(u => u.name).join(", ") : "0";
-  } catch {}
+  renderOnlineUsersFromPresence();
 }
 
-document.addEventListener("DOMContentLoaded", () => {
+document.addEventListener("DOMContentLoaded", async () => {
   const miniProfile = document.getElementById("mini-profile");
   const dropdownMenu = document.getElementById("dropdown-menu");
   const arrow = document.getElementById("arrow");
@@ -1252,6 +1501,8 @@ document.addEventListener("DOMContentLoaded", () => {
 
   restoreBadgeOnLoad();
   loadProfile();
+
+  await setupRealtime();
 
   miniProfile.onclick = () => {
     const open = dropdownMenu.style.display === "block";
@@ -1385,24 +1636,21 @@ document.addEventListener("DOMContentLoaded", () => {
   });
 
   contentInput.addEventListener("input", () => onUserTyping());
-  contentInput.addEventListener("focus", () => { onUserTyping(); markAllSeen(); });
+  contentInput.addEventListener("focus", () => {
+    onUserTyping();
+    markAllSeen();
+    refreshOwnPresence();
+  });
   contentInput.addEventListener("blur", () => sendTyping(false));
 
   setHeader();
   renderReplyBar();
 
-  loadMessages();
-  setInterval(() => loadMessages(), 3000);
-
-  updateOnlineStatus();
-  setInterval(updateOnlineStatus, 5000);
-
-  loadOnlineUsers();
-  setInterval(loadOnlineUsers, 5000);
-
-  loadTypingStatus();
-  setInterval(loadTypingStatus, 900);
+  await loadMessages();
+  await loadOnlineUsers();
+  await loadTypingStatus();
 });
 
 window.toggleEmojis = toggleEmojis;
 window.sendMessage = sendMessage;
+
