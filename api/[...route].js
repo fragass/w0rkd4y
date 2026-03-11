@@ -180,6 +180,51 @@ async function isAdminUser(username) {
   return !!data?.is_admin;
 }
 
+async function requireAdminAccess(username) {
+  if (!username) {
+    throw new Error("Username obrigatório");
+  }
+
+  const admin = await isAdminUser(username);
+  if (!admin) {
+    const err = new Error("Você não tem permissão para executar esta ação");
+    err.statusCode = 403;
+    throw err;
+  }
+}
+
+async function getProfileByUsername(username) {
+  const { data, error } = await supabaseService
+    .from("user_profiles")
+    .select("username, display_name, avatar_url, updated_at")
+    .eq("username", username)
+    .maybeSingle();
+
+  if (error) throw new Error(error.message);
+  return data || null;
+}
+
+async function appendAdminLog(actor, action, details = {}) {
+  try {
+    await supabaseService.from("admin_logs").insert([
+      {
+        actor,
+        action,
+        details,
+      },
+    ]);
+  } catch {}
+}
+
+function normalizeSearchTerm(value) {
+  return String(value || "").trim().toLowerCase();
+}
+
+function includesSearch(value, term) {
+  if (!term) return true;
+  return String(value || "").toLowerCase().includes(term);
+}
+
 async function getChannelByRoom(room) {
   const { data, error } = await supabaseService
     .from(PRIVATE_CHANNELS_TABLE)
@@ -799,8 +844,471 @@ async function handleChatUpload(req, res) {
 }
 
 /* =========================
-   /api/admin/clear
+   /api/admin/*
 ========================= */
+
+async function getReferencedImagePaths(options = {}) {
+  const includePublic = options.includePublic !== false;
+  const includePrivate = options.includePrivate !== false;
+  const paths = new Set();
+
+  if (includePublic) {
+    const { data, error } = await supabaseService
+      .from(PUBLIC_MESSAGES_TABLE)
+      .select("image_url");
+
+    if (error) throw new Error(`Erro ao buscar imagens públicas: ${error.message}`);
+
+    (data || []).forEach(row => {
+      const path = extractStoragePathFromPublicUrl(row.image_url, CHAT_IMAGES_BUCKET);
+      if (path) paths.add(path);
+    });
+  }
+
+  if (includePrivate) {
+    const { data, error } = await supabaseService
+      .from(PRIVATE_MESSAGES_TABLE)
+      .select("image_url");
+
+    if (error) throw new Error(`Erro ao buscar imagens privadas: ${error.message}`);
+
+    (data || []).forEach(row => {
+      const path = extractStoragePathFromPublicUrl(row.image_url, CHAT_IMAGES_BUCKET);
+      if (path) paths.add(path);
+    });
+  }
+
+  return Array.from(paths);
+}
+
+async function removeStoragePaths(bucket, paths) {
+  const unique = Array.from(new Set((paths || []).filter(Boolean)));
+  if (!unique.length) return 0;
+
+  const chunkSize = 100;
+
+  for (let i = 0; i < unique.length; i += chunkSize) {
+    const chunk = unique.slice(i, i + chunkSize);
+    const { error } = await supabaseService.storage.from(bucket).remove(chunk);
+    if (error) throw new Error(`Erro ao remover arquivos do bucket ${bucket}: ${error.message}`);
+  }
+
+  return unique.length;
+}
+
+async function handleAdminStats(req, res) {
+  if (req.method !== "GET") {
+    return sendJson(res, 405, { success: false, message: "Método não permitido" });
+  }
+
+  try {
+    const username = String(req.query?.username || "").trim();
+    await requireAdminAccess(username);
+
+    const now = Date.now();
+
+    const [
+      usersRes,
+      publicRes,
+      privateRes,
+      channelsRes,
+      onlineRes,
+      recentPublicRes,
+      recentPrivateRes,
+    ] = await Promise.all([
+      supabaseService.from("users").select("username, is_admin"),
+      supabaseService.from(PUBLIC_MESSAGES_TABLE).select("id, image_url"),
+      supabaseService.from(PRIVATE_MESSAGES_TABLE).select("id, image_url"),
+      supabaseService.from(PRIVATE_CHANNELS_TABLE).select("id, last_activity"),
+      supabaseService.from("online_users").select("name, last_seen"),
+      supabaseService.from(PUBLIC_MESSAGES_TABLE).select("id").order("created_at", { ascending: false }).limit(1),
+      supabaseService.from(PRIVATE_MESSAGES_TABLE).select("id").order("created_at", { ascending: false }).limit(1),
+    ]);
+
+    const responses = [usersRes, publicRes, privateRes, channelsRes, onlineRes, recentPublicRes, recentPrivateRes];
+    const failed = responses.find(item => item.error);
+    if (failed?.error) throw new Error(failed.error.message);
+
+    const users = usersRes.data || [];
+    const onlineUsers = (onlineRes.data || []).filter((user) => {
+      const last = new Date(user.last_seen).getTime();
+      return Number.isFinite(last) && now - last < 15000;
+    });
+
+    const publicMessages = publicRes.data || [];
+    const privateMessages = privateRes.data || [];
+    const channels = channelsRes.data || [];
+
+    return sendJson(res, 200, {
+      success: true,
+      stats: {
+        users_total: users.length,
+        admins_total: users.filter(user => !!user.is_admin).length,
+        online_now: onlineUsers.length,
+        public_messages: publicMessages.length,
+        private_messages: privateMessages.length,
+        private_rooms: channels.length,
+        uploaded_images: publicMessages.filter(row => !!row.image_url).length + privateMessages.filter(row => !!row.image_url).length,
+        newest_public_message: recentPublicRes.data?.[0]?.id || null,
+        newest_private_message: recentPrivateRes.data?.[0]?.id || null,
+      },
+    });
+  } catch (error) {
+    return sendJson(res, error.statusCode || 500, {
+      success: false,
+      message: error.message || "Erro ao carregar estatísticas",
+    });
+  }
+}
+
+async function handleAdminUsers(req, res) {
+  if (req.method !== "GET") {
+    return sendJson(res, 405, { success: false, message: "Método não permitido" });
+  }
+
+  try {
+    const username = String(req.query?.username || "").trim();
+    const search = normalizeSearchTerm(req.query?.search);
+    await requireAdminAccess(username);
+
+    const [usersRes, profilesRes, onlineRes] = await Promise.all([
+      supabaseService.from("users").select("username, is_admin, created_at, updated_at").order("created_at", { ascending: true }),
+      supabaseService.from("user_profiles").select("username, display_name, avatar_url, updated_at"),
+      supabaseService.from("online_users").select("name, last_seen"),
+    ]);
+
+    const failed = [usersRes, profilesRes, onlineRes].find(item => item.error);
+    if (failed?.error) throw new Error(failed.error.message);
+
+    const profileMap = {};
+    (profilesRes.data || []).forEach(profile => {
+      profileMap[profile.username] = profile;
+    });
+
+    const now = Date.now();
+    const onlineMap = {};
+    (onlineRes.data || []).forEach(item => {
+      const last = new Date(item.last_seen).getTime();
+      onlineMap[item.name] = Number.isFinite(last) && now - last < 15000;
+    });
+
+    const rows = (usersRes.data || []).map((user) => {
+      const profile = profileMap[user.username] || {};
+      return {
+        username: user.username,
+        display_name: profile.display_name || user.username,
+        avatar_url: profile.avatar_url || null,
+        is_admin: !!user.is_admin,
+        created_at: user.created_at || null,
+        updated_at: user.updated_at || null,
+        profile_updated_at: profile.updated_at || null,
+        online: !!onlineMap[user.username],
+      };
+    }).filter((row) => {
+      if (!search) return true;
+      return includesSearch(row.username, search) || includesSearch(row.display_name, search);
+    });
+
+    return sendJson(res, 200, { success: true, users: rows });
+  } catch (error) {
+    return sendJson(res, error.statusCode || 500, {
+      success: false,
+      message: error.message || "Erro ao listar usuários",
+    });
+  }
+}
+
+async function handleAdminUserCreate(req, res) {
+  if (req.method !== "POST") {
+    return sendJson(res, 405, { success: false, message: "Método não permitido" });
+  }
+
+  try {
+    const body = await readJsonBody(req);
+    const actor = String(body?.username || "").trim();
+    await requireAdminAccess(actor);
+
+    const newUsername = String(body?.new_username || "").trim();
+    const password = String(body?.password || "").trim();
+    const displayName = String(body?.display_name || newUsername).trim();
+    const isAdmin = !!body?.is_admin;
+
+    if (!isValidName(newUsername)) {
+      return sendJson(res, 400, {
+        success: false,
+        message: "Username inválido. Use de 2 a 24 caracteres: letras, números ou _",
+      });
+    }
+
+    if (password.length < 3 || password.length > 80) {
+      return sendJson(res, 400, {
+        success: false,
+        message: "A senha precisa ter entre 3 e 80 caracteres",
+      });
+    }
+
+    const { data: existingUser, error: existingError } = await supabaseService
+      .from("users")
+      .select("username")
+      .eq("username", newUsername)
+      .maybeSingle();
+
+    if (existingError) throw new Error(existingError.message);
+    if (existingUser) {
+      return sendJson(res, 409, {
+        success: false,
+        message: "Esse username já existe",
+      });
+    }
+
+    const safeDisplayName = displayName.slice(0, 40) || newUsername;
+
+    const { error: insertUserError } = await supabaseService
+      .from("users")
+      .insert([
+        {
+          username: newUsername,
+          password,
+          is_admin: isAdmin,
+        },
+      ]);
+
+    if (insertUserError) throw new Error(insertUserError.message);
+
+    const { error: insertProfileError } = await supabaseService
+      .from("user_profiles")
+      .upsert(
+        [
+          {
+            username: newUsername,
+            display_name: safeDisplayName,
+            avatar_url: null,
+          },
+        ],
+        { onConflict: "username" }
+      );
+
+    if (insertProfileError) throw new Error(insertProfileError.message);
+
+    await appendAdminLog(actor, "user_create", {
+      target: newUsername,
+      is_admin: isAdmin,
+    });
+
+    return sendJson(res, 200, {
+      success: true,
+      message: `Usuário ${newUsername} criado com sucesso`,
+    });
+  } catch (error) {
+    return sendJson(res, error.statusCode || 500, {
+      success: false,
+      message: error.message || "Erro ao criar usuário",
+    });
+  }
+}
+
+async function handleAdminUserRole(req, res) {
+  if (req.method !== "POST") {
+    return sendJson(res, 405, { success: false, message: "Método não permitido" });
+  }
+
+  try {
+    const body = await readJsonBody(req);
+    const actor = String(body?.username || "").trim();
+    await requireAdminAccess(actor);
+
+    const target = String(body?.target_username || "").trim();
+    const makeAdmin = !!body?.is_admin;
+
+    if (!target) {
+      return sendJson(res, 400, { success: false, message: "Usuário alvo obrigatório" });
+    }
+
+    const { data: targetUser, error: targetError } = await supabaseService
+      .from("users")
+      .select("username")
+      .eq("username", target)
+      .maybeSingle();
+
+    if (targetError) throw new Error(targetError.message);
+    if (!targetUser) {
+      return sendJson(res, 404, { success: false, message: "Usuário não encontrado" });
+    }
+
+    const { error: updateError } = await supabaseService
+      .from("users")
+      .update({ is_admin: makeAdmin })
+      .eq("username", target);
+
+    if (updateError) throw new Error(updateError.message);
+
+    await appendAdminLog(actor, makeAdmin ? "user_promote" : "user_demote", {
+      target,
+      is_admin: makeAdmin,
+    });
+
+    return sendJson(res, 200, {
+      success: true,
+      message: makeAdmin ? `${target} agora é admin` : `${target} deixou de ser admin`,
+    });
+  } catch (error) {
+    return sendJson(res, error.statusCode || 500, {
+      success: false,
+      message: error.message || "Erro ao atualizar permissão",
+    });
+  }
+}
+
+async function handleAdminUserRemove(req, res) {
+  if (req.method !== "POST") {
+    return sendJson(res, 405, { success: false, message: "Método não permitido" });
+  }
+
+  try {
+    const body = await readJsonBody(req);
+    const actor = String(body?.username || "").trim();
+    await requireAdminAccess(actor);
+
+    const target = String(body?.target_username || "").trim();
+    if (!target) {
+      return sendJson(res, 400, { success: false, message: "Usuário alvo obrigatório" });
+    }
+
+    if (target === actor) {
+      return sendJson(res, 400, { success: false, message: "Você não pode remover a própria conta por aqui" });
+    }
+
+    const profile = await getProfileByUsername(target);
+    const avatarPath = extractStoragePathFromPublicUrl(profile?.avatar_url, PROFILE_AVATARS_BUCKET);
+
+    const [publicMsgsRes, channelsRes, privateMsgsRes] = await Promise.all([
+      supabaseService.from(PUBLIC_MESSAGES_TABLE).select("id, image_url").eq("name", target),
+      supabaseService.from(PRIVATE_CHANNELS_TABLE).select("id").or(`user1.eq.${target},user2.eq.${target}`),
+      supabaseService.from(PRIVATE_MESSAGES_TABLE).select("id, image_url").eq("sender", target),
+    ]);
+
+    const failed = [publicMsgsRes, channelsRes, privateMsgsRes].find(item => item.error);
+    if (failed?.error) throw new Error(failed.error.message);
+
+    const channelIds = (channelsRes.data || []).map(item => item.id);
+    let channelMessages = [];
+    if (channelIds.length) {
+      const channelMessagesRes = await supabaseService
+        .from(PRIVATE_MESSAGES_TABLE)
+        .select("id, image_url")
+        .in("channel_id", channelIds);
+      if (channelMessagesRes.error) throw new Error(channelMessagesRes.error.message);
+      channelMessages = channelMessagesRes.data || [];
+    }
+
+    const imagePaths = [
+      ...((publicMsgsRes.data || []).map(row => extractStoragePathFromPublicUrl(row.image_url, CHAT_IMAGES_BUCKET)).filter(Boolean)),
+      ...((privateMsgsRes.data || []).map(row => extractStoragePathFromPublicUrl(row.image_url, CHAT_IMAGES_BUCKET)).filter(Boolean)),
+      ...((channelMessages || []).map(row => extractStoragePathFromPublicUrl(row.image_url, CHAT_IMAGES_BUCKET)).filter(Boolean)),
+    ];
+
+    await removeStoragePaths(CHAT_IMAGES_BUCKET, imagePaths);
+    if (avatarPath) {
+      await removeStoragePaths(PROFILE_AVATARS_BUCKET, [avatarPath]);
+    }
+
+    if (channelIds.length) {
+      await supabaseService.from(PRIVATE_MESSAGES_TABLE).delete().in("channel_id", channelIds);
+      await supabaseService.from(PRIVATE_CHANNELS_TABLE).delete().in("id", channelIds);
+    }
+
+    await supabaseService.from(PRIVATE_MESSAGES_TABLE).delete().eq("sender", target);
+    await supabaseService.from(PUBLIC_MESSAGES_TABLE).delete().eq("name", target);
+    await supabaseService.from("online_users").delete().eq("name", target);
+    await supabaseService.from("user_profiles").delete().eq("username", target);
+    await supabaseService.from("users").delete().eq("username", target);
+
+    await appendAdminLog(actor, "user_remove", {
+      target,
+      deleted_images: imagePaths.length,
+      removed_channels: channelIds.length,
+    });
+
+    return sendJson(res, 200, {
+      success: true,
+      message: `Usuário ${target} removido com sucesso`,
+    });
+  } catch (error) {
+    return sendJson(res, error.statusCode || 500, {
+      success: false,
+      message: error.message || "Erro ao remover usuário",
+    });
+  }
+}
+
+async function handleAdminLogs(req, res) {
+  if (req.method !== "GET") {
+    return sendJson(res, 405, { success: false, message: "Método não permitido" });
+  }
+
+  try {
+    const username = String(req.query?.username || "").trim();
+    const type = String(req.query?.type || "all").trim();
+    const search = normalizeSearchTerm(req.query?.search);
+    const limit = Math.min(Math.max(Number(req.query?.limit || 80), 10), 200);
+    await requireAdminAccess(username);
+
+    const [publicRes, privateRes, adminRes] = await Promise.all([
+      supabaseService.from(PUBLIC_MESSAGES_TABLE).select("id, name, content, image_url, to, created_at").order("created_at", { ascending: false }).limit(limit),
+      supabaseService.from(PRIVATE_MESSAGES_TABLE).select("id, sender, message, image_url, created_at, channel_id").order("created_at", { ascending: false }).limit(limit),
+      supabaseService.from("admin_logs").select("id, actor, action, details, created_at").order("created_at", { ascending: false }).limit(limit),
+    ]);
+
+    const publicItems = (publicRes.error ? [] : (publicRes.data || [])).map(item => ({
+      id: `public-${item.id}`,
+      type: "public",
+      actor: item.name,
+      target: item.to || null,
+      message: item.content || (item.image_url ? "🖼 Imagem" : ""),
+      has_image: !!item.image_url,
+      created_at: item.created_at,
+      raw: item,
+    }));
+
+    const privateItems = (privateRes.error ? [] : (privateRes.data || [])).map(item => ({
+      id: `private-${item.id}`,
+      type: "private",
+      actor: item.sender,
+      target: item.channel_id,
+      message: item.message || (item.image_url ? "🖼 Imagem" : ""),
+      has_image: !!item.image_url,
+      created_at: item.created_at,
+      raw: item,
+    }));
+
+    const adminItems = (adminRes.error ? [] : (adminRes.data || [])).map(item => ({
+      id: `admin-${item.id}`,
+      type: "admin",
+      actor: item.actor,
+      target: item.details?.target || null,
+      message: item.action,
+      has_image: false,
+      created_at: item.created_at,
+      raw: item,
+    }));
+
+    const merged = [...publicItems, ...privateItems, ...adminItems]
+      .filter(item => {
+        if (type !== "all" && item.type !== type) return false;
+        if (!search) return true;
+        return [item.actor, item.target, item.message, JSON.stringify(item.raw || {})].some(value => includesSearch(value, search));
+      })
+      .sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime())
+      .slice(0, limit);
+
+    return sendJson(res, 200, { success: true, logs: merged });
+  } catch (error) {
+    return sendJson(res, error.statusCode || 500, {
+      success: false,
+      message: error.message || "Erro ao carregar logs",
+    });
+  }
+}
 
 async function handleAdminClear(req, res) {
   if (req.method !== "POST") {
@@ -812,99 +1320,128 @@ async function handleAdminClear(req, res) {
 
   try {
     const body = await readJsonBody(req);
-    const { username, scope } = body || {};
+    const { username } = body || {};
+    const scope = String(body?.scope || "all").trim();
 
-    if (!username) {
+    await requireAdminAccess(username);
+
+    const validScopes = ["all", "public", "private", "images", "channels"];
+    if (!validScopes.includes(scope)) {
       return sendJson(res, 400, {
         success: false,
-        message: "Username obrigatório",
+        message: `Scope inválido. Use um destes: ${validScopes.join(", ")}`,
       });
     }
 
-    if (scope !== "all") {
-      return sendJson(res, 400, {
-        success: false,
-        message: 'Scope inválido. Use "all".',
-      });
+    let deletedImages = 0;
+    let deletedPublic = 0;
+    let deletedPrivate = 0;
+    let deletedChannels = 0;
+
+    if (scope === "all" || scope === "public") {
+      const { data, error } = await supabaseService.from(PUBLIC_MESSAGES_TABLE).select("id, image_url");
+      if (error) throw new Error(`Erro ao buscar mensagens públicas: ${error.message}`);
+      const rows = data || [];
+      deletedPublic = rows.length;
+      deletedImages += await removeStoragePaths(
+        CHAT_IMAGES_BUCKET,
+        rows.map(row => extractStoragePathFromPublicUrl(row.image_url, CHAT_IMAGES_BUCKET)).filter(Boolean)
+      );
+      if (rows.length) {
+        const { error: deleteError } = await supabaseService.from(PUBLIC_MESSAGES_TABLE).delete().not("id", "is", null);
+        if (deleteError) throw new Error(`Erro ao limpar mensagens públicas: ${deleteError.message}`);
+      }
     }
 
-    const admin = await isAdminUser(username);
-
-    if (!admin) {
-      return sendJson(res, 403, {
-        success: false,
-        message: "Você não tem permissão para executar este comando",
-      });
-    }
-
-    const [publicRes, privateRes] = await Promise.all([
-      supabaseService.from(PUBLIC_MESSAGES_TABLE).select("image_url"),
-      supabaseService.from(PRIVATE_MESSAGES_TABLE).select("image_url"),
-    ]);
-
-    if (publicRes.error) {
-      throw new Error(`Erro ao buscar mensagens públicas: ${publicRes.error.message}`);
-    }
-
-    if (privateRes.error) {
-      throw new Error(`Erro ao buscar mensagens privadas: ${privateRes.error.message}`);
-    }
-
-    const allRows = [
-      ...(publicRes.data || []),
-      ...(privateRes.data || []),
-    ];
-
-    const imagePaths = Array.from(
-      new Set(
-        allRows
-          .map(row => extractStoragePathFromPublicUrl(row.image_url, CHAT_IMAGES_BUCKET))
-          .filter(Boolean)
-      )
-    );
-
-    if (imagePaths.length) {
-      const chunkSize = 100;
-
-      for (let i = 0; i < imagePaths.length; i += chunkSize) {
-        const chunk = imagePaths.slice(i, i + chunkSize);
-
-        const { error } = await supabaseService.storage
-          .from(CHAT_IMAGES_BUCKET)
-          .remove(chunk);
-
-        if (error) {
-          throw new Error(`Erro ao apagar imagens do storage: ${error.message}`);
+    if (scope === "all" || scope === "private") {
+      const { data, error } = await supabaseService.from(PRIVATE_MESSAGES_TABLE).select("id, image_url");
+      if (error) throw new Error(`Erro ao buscar mensagens privadas: ${error.message}`);
+      const rows = data || [];
+      deletedPrivate = rows.length;
+      deletedImages += await removeStoragePaths(
+        CHAT_IMAGES_BUCKET,
+        rows.map(row => extractStoragePathFromPublicUrl(row.image_url, CHAT_IMAGES_BUCKET)).filter(Boolean)
+      );
+      if (rows.length) {
+        const { error: deleteError } = await supabaseService.from(PRIVATE_MESSAGES_TABLE).delete().not("id", "is", null);
+        if (deleteError) throw new Error(`Erro ao limpar mensagens privadas: ${deleteError.message}`);
+      }
+      if (scope === "all") {
+        const channelsRes = await supabaseService.from(PRIVATE_CHANNELS_TABLE).select("id");
+        if (channelsRes.error) throw new Error(`Erro ao buscar salas privadas: ${channelsRes.error.message}`);
+        deletedChannels = (channelsRes.data || []).length;
+        if (deletedChannels) {
+          const { error: deleteChannelsError } = await supabaseService.from(PRIVATE_CHANNELS_TABLE).delete().not("id", "is", null);
+          if (deleteChannelsError) throw new Error(`Erro ao limpar salas privadas: ${deleteChannelsError.message}`);
         }
       }
     }
 
-    const tables = [
-      PRIVATE_MESSAGES_TABLE,
-      PUBLIC_MESSAGES_TABLE,
-      PRIVATE_CHANNELS_TABLE,
-    ];
+    if (scope === "channels") {
+      const channelsRes = await supabaseService.from(PRIVATE_CHANNELS_TABLE).select("id");
+      if (channelsRes.error) throw new Error(`Erro ao buscar salas privadas: ${channelsRes.error.message}`);
+      const channelIds = (channelsRes.data || []).map(item => item.id);
+      deletedChannels = channelIds.length;
 
-    for (const tableName of tables) {
-      const { error } = await supabaseService
-        .from(tableName)
-        .delete()
-        .not("id", "is", null);
-
-      if (error) {
-        throw new Error(`Erro ao limpar tabela ${tableName}: ${error.message}`);
+      if (channelIds.length) {
+        const messageRes = await supabaseService.from(PRIVATE_MESSAGES_TABLE).select("id, image_url").in("channel_id", channelIds);
+        if (messageRes.error) throw new Error(`Erro ao buscar mensagens das salas: ${messageRes.error.message}`);
+        const rows = messageRes.data || [];
+        deletedPrivate = rows.length;
+        deletedImages += await removeStoragePaths(
+          CHAT_IMAGES_BUCKET,
+          rows.map(row => extractStoragePathFromPublicUrl(row.image_url, CHAT_IMAGES_BUCKET)).filter(Boolean)
+        );
+        await supabaseService.from(PRIVATE_MESSAGES_TABLE).delete().in("channel_id", channelIds);
+        await supabaseService.from(PRIVATE_CHANNELS_TABLE).delete().in("id", channelIds);
       }
     }
 
+    if (scope === "images") {
+      const imagePaths = await getReferencedImagePaths({ includePublic: true, includePrivate: true });
+      deletedImages = await removeStoragePaths(CHAT_IMAGES_BUCKET, imagePaths);
+
+      const publicWithImages = await supabaseService
+        .from(PUBLIC_MESSAGES_TABLE)
+        .update({ image_url: null, content: "Imagem removida pelo admin" })
+        .not("image_url", "is", null);
+      if (publicWithImages.error) throw new Error(`Erro ao limpar imagens públicas: ${publicWithImages.error.message}`);
+
+      const privateWithImages = await supabaseService
+        .from(PRIVATE_MESSAGES_TABLE)
+        .update({ image_url: null, message: "Imagem removida pelo admin" })
+        .not("image_url", "is", null);
+      if (privateWithImages.error) throw new Error(`Erro ao limpar imagens privadas: ${privateWithImages.error.message}`);
+    }
+
+    await appendAdminLog(username, `clear_${scope}`, {
+      scope,
+      deleted_images: deletedImages,
+      deleted_public: deletedPublic,
+      deleted_private: deletedPrivate,
+      deleted_channels: deletedChannels,
+    });
+
+    const messages = {
+      all: "Chat completamente limpo. Mensagens, imagens e salas privadas foram removidas.",
+      public: "Mensagens públicas removidas com sucesso.",
+      private: "Mensagens privadas removidas com sucesso.",
+      images: "Todas as imagens do chat foram removidas e os registros foram neutralizados.",
+      channels: "Salas privadas e suas mensagens foram removidas com sucesso.",
+    };
+
     return sendJson(res, 200, {
       success: true,
-      message: "❗ Chat completamente limpo. Mensagens, imagens e salas privadas foram removidas.",
-      deleted_images: imagePaths.length,
+      message: messages[scope],
+      deleted_images: deletedImages,
+      deleted_public: deletedPublic,
+      deleted_private: deletedPrivate,
+      deleted_channels: deletedChannels,
     });
   } catch (error) {
-    return sendJson(res, 500, {
+    return sendJson(res, error.statusCode || 500, {
       success: false,
-      message: error.message || "Erro interno ao executar clear all",
+      message: error.message || "Erro interno ao executar ação admin",
     });
   }
 }
@@ -1278,6 +1815,12 @@ async function handler(req, res) {
   if (routeKey === "profile") return handleProfile(req, res);
   if (routeKey === "profile-upload") return handleProfileUpload(req, res);
   if (routeKey === "upload") return handleChatUpload(req, res);
+  if (routeKey === "admin/stats") return handleAdminStats(req, res);
+  if (routeKey === "admin/users") return handleAdminUsers(req, res);
+  if (routeKey === "admin/users/create") return handleAdminUserCreate(req, res);
+  if (routeKey === "admin/users/role") return handleAdminUserRole(req, res);
+  if (routeKey === "admin/users/remove") return handleAdminUserRemove(req, res);
+  if (routeKey === "admin/logs") return handleAdminLogs(req, res);
   if (routeKey === "admin/clear") return handleAdminClear(req, res);
   if (routeKey === "dm/create") return handleDmCreate(req, res);
   if (routeKey === "dm/enter") return handleDmEnter(req, res);
