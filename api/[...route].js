@@ -196,7 +196,7 @@ async function requireAdminAccess(username) {
 async function getProfileByUsername(username) {
   const { data, error } = await supabaseService
     .from("user_profiles")
-    .select("username, display_name, avatar_url, updated_at")
+    .select("username, display_name, avatar_url")
     .eq("username", username)
     .maybeSingle();
 
@@ -561,7 +561,7 @@ async function handleProfile(req, res) {
     try {
       const { data, error } = await supabaseAnon
         .from("user_profiles")
-        .select("username, display_name, avatar_url, updated_at")
+        .select("username, display_name, avatar_url")
         .eq("username", username)
         .maybeSingle();
 
@@ -972,8 +972,8 @@ async function handleAdminUsers(req, res) {
     await requireAdminAccess(username);
 
     const [usersRes, profilesRes, onlineRes] = await Promise.all([
-      supabaseService.from("users").select("username, is_admin, created_at, updated_at").order("created_at", { ascending: true }),
-      supabaseService.from("user_profiles").select("username, display_name, avatar_url, updated_at"),
+      supabaseService.from("users").select("username, is_admin, created_at").order("created_at", { ascending: true }),
+      supabaseService.from("user_profiles").select("username, display_name, avatar_url"),
       supabaseService.from("online_users").select("name, last_seen"),
     ]);
 
@@ -1000,8 +1000,6 @@ async function handleAdminUsers(req, res) {
         avatar_url: profile.avatar_url || null,
         is_admin: !!user.is_admin,
         created_at: user.created_at || null,
-        updated_at: user.updated_at || null,
-        profile_updated_at: profile.updated_at || null,
         online: !!onlineMap[user.username],
       };
     }).filter((row) => {
