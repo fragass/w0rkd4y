@@ -49,6 +49,13 @@ const SEEN_KEY = "wd_lastSeenAt";
 const BADGE_KEY = "wd_badgeCount";
 
 /* =========================
+   CONTROLE DE RENDER
+========================= */
+
+let publicRenderVersion = 0;
+let dmRenderVersion = 0;
+
+/* =========================
    REALTIME
 ========================= */
 
@@ -523,6 +530,9 @@ async function runAdminClearAll() {
   if (chatMode === "dm") {
     await teardownDmRealtimeChannel();
   }
+
+  publicRenderVersion++;
+  dmRenderVersion++;
 
   chatMode = "public";
   currentRoom = null;
@@ -1078,10 +1088,13 @@ function buildReplyPreviewHTML(preview) {
 
 async function loadPublicMessages(options = {}) {
   const { forceScrollBottom = false } = options;
+  const renderVersion = ++publicRenderVersion;
 
   try {
     const res = await apiFetch("messages");
     const data = await res.json();
+
+    if (chatMode !== "public" || renderVersion !== publicRenderVersion) return;
 
     const visibleMessages = Array.isArray(data) ? data.filter(msg => canUserSeeMessage(msg)) : [];
 
@@ -1104,6 +1117,8 @@ async function loadPublicMessages(options = {}) {
     const previousScrollHeight = box.scrollHeight;
     const distanceFromBottom = previousScrollHeight - previousScrollTop - box.clientHeight;
     const shouldAutoScroll = forceScrollBottom || distanceFromBottom < 80;
+
+    if (chatMode !== "public" || renderVersion !== publicRenderVersion) return;
 
     box.innerHTML = "";
     lastRenderedElements = [];
@@ -1168,12 +1183,18 @@ async function loadDmMessages(options = {}) {
   const { forceScrollBottom = false } = options;
   if (!currentRoom) return;
 
+  const roomSnapshot = currentRoom;
+  const renderVersion = ++dmRenderVersion;
+
   try {
     const res = await apiFetch("dm/messages", {}, {
-      room: currentRoom,
+      room: roomSnapshot,
       name: loggedUser
     });
     const data = await res.json();
+
+    if (chatMode !== "dm" || currentRoom !== roomSnapshot || renderVersion !== dmRenderVersion) return;
+
     const msgs = Array.isArray(data) ? data : [];
 
     bumpBadgeFromMessages(msgs, "dm");
@@ -1183,6 +1204,8 @@ async function loadDmMessages(options = {}) {
     const previousScrollHeight = box.scrollHeight;
     const distanceFromBottom = previousScrollHeight - previousScrollTop - box.clientHeight;
     const shouldAutoScroll = forceScrollBottom || distanceFromBottom < 80;
+
+    if (chatMode !== "dm" || currentRoom !== roomSnapshot || renderVersion !== dmRenderVersion) return;
 
     box.innerHTML = "";
     lastRenderedElements = [];
@@ -1295,6 +1318,9 @@ async function createRoom(target, room) {
 
 async function enterRoom(room) {
   try {
+    publicRenderVersion++;
+    dmRenderVersion++;
+
     const res = await apiFetch("dm/enter", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
@@ -1321,7 +1347,6 @@ async function enterRoom(room) {
     setHeader();
 
     await sendTyping(false);
-
     await loadDmMessages({ forceScrollBottom: true });
     await setupDmRealtimeChannel(currentRoom);
 
@@ -1352,6 +1377,9 @@ async function leaveRoom() {
   const left = currentRoom;
 
   await teardownDmRealtimeChannel();
+
+  publicRenderVersion++;
+  dmRenderVersion++;
 
   chatMode = "public";
   currentRoom = null;
@@ -1732,6 +1760,3 @@ document.addEventListener("DOMContentLoaded", async () => {
 
 window.toggleEmojis = toggleEmojis;
 window.sendMessage = sendMessage;
-
-
-
