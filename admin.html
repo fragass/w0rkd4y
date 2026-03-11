@@ -1,0 +1,173 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Painel Admin - Workday</title>
+  <link rel="icon" href="favicon.png" type="image/png">
+  <link rel="stylesheet" href="css/admin.css">
+  <script>
+    if (!sessionStorage.getItem("token") || !sessionStorage.getItem("loggedUser")) {
+      window.location.href = "index.html";
+    }
+    if (sessionStorage.getItem("isAdmin") !== "true") {
+      window.location.href = "8617a543f74d88b440f5ba33e1713f063665240f.html";
+    }
+  </script>
+</head>
+<body>
+  <div class="admin-shell">
+    <aside class="sidebar">
+      <div>
+        <div class="brand">Workday</div>
+        <div class="brand-sub">Painel admin nativo</div>
+      </div>
+
+      <nav class="sidebar-nav">
+        <button class="nav-btn active" data-section="dashboard">Dashboard</button>
+        <button class="nav-btn" data-section="users">Usuários</button>
+        <button class="nav-btn" data-section="logs">Logs</button>
+        <button class="nav-btn" data-section="danger">Moderação</button>
+      </nav>
+
+      <div class="sidebar-footer">
+        <div class="admin-mini-card">
+          <div class="admin-mini-label">Logado como</div>
+          <strong id="adminIdentity">admin</strong>
+        </div>
+        <a class="ghost-link" href="8617a543f74d88b440f5ba33e1713f063665240f.html">Voltar ao chat</a>
+      </div>
+    </aside>
+
+    <main class="main-panel">
+      <header class="page-header">
+        <div>
+          <h1>Painel administrativo</h1>
+          <p>Controle real do sistema, sem enfeite inútil.</p>
+        </div>
+        <div class="header-actions">
+          <button id="refreshAllBtn" class="secondary-btn">Atualizar tudo</button>
+        </div>
+      </header>
+
+      <section class="page-section active" data-page="dashboard">
+        <div class="stats-grid">
+          <article class="stat-card"><span>Total de usuários</span><strong id="statUsers">--</strong></article>
+          <article class="stat-card"><span>Admins</span><strong id="statAdmins">--</strong></article>
+          <article class="stat-card"><span>Online agora</span><strong id="statOnline">--</strong></article>
+          <article class="stat-card"><span>Mensagens públicas</span><strong id="statPublic">--</strong></article>
+          <article class="stat-card"><span>Mensagens privadas</span><strong id="statPrivate">--</strong></article>
+          <article class="stat-card"><span>Salas privadas</span><strong id="statRooms">--</strong></article>
+          <article class="stat-card"><span>Imagens registradas</span><strong id="statImages">--</strong></article>
+        </div>
+
+        <div class="grid-two">
+          <section class="panel-card">
+            <div class="panel-head">
+              <h2>Ações rápidas</h2>
+              <span>Úteis de verdade</span>
+            </div>
+            <div class="quick-actions">
+              <button class="primary-btn" data-clear-scope="public">Limpar público</button>
+              <button class="primary-btn" data-clear-scope="private">Limpar privado</button>
+              <button class="primary-btn" data-clear-scope="images">Limpar imagens</button>
+              <button class="danger-btn" data-clear-scope="all">Clear all</button>
+            </div>
+          </section>
+
+          <section class="panel-card">
+            <div class="panel-head">
+              <h2>Status</h2>
+              <span>Leitura rápida</span>
+            </div>
+            <div class="status-list" id="systemStatusList"></div>
+          </section>
+        </div>
+      </section>
+
+      <section class="page-section" data-page="users">
+        <div class="grid-two users-layout">
+          <section class="panel-card">
+            <div class="panel-head">
+              <h2>Criar usuário</h2>
+              <span>Conta nova pronta para login</span>
+            </div>
+            <form id="createUserForm" class="form-grid">
+              <input name="new_username" placeholder="username" maxlength="24" required>
+              <input name="display_name" placeholder="nome de exibição" maxlength="40">
+              <input name="password" placeholder="senha" maxlength="80" required>
+              <label class="checkbox-row"><input type="checkbox" name="is_admin"> Criar como admin</label>
+              <button type="submit" class="primary-btn form-submit">Criar usuário</button>
+            </form>
+          </section>
+
+          <section class="panel-card">
+            <div class="panel-head">
+              <h2>Buscar usuários</h2>
+              <span>Lista viva com status</span>
+            </div>
+            <div class="toolbar-row">
+              <input id="userSearchInput" placeholder="buscar por username ou nome">
+              <button id="reloadUsersBtn" class="secondary-btn">Recarregar</button>
+            </div>
+            <div class="table-wrap">
+              <table>
+                <thead>
+                  <tr>
+                    <th>Usuário</th>
+                    <th>Status</th>
+                    <th>Admin</th>
+                    <th>Criado em</th>
+                    <th>Ações</th>
+                  </tr>
+                </thead>
+                <tbody id="usersTableBody"></tbody>
+              </table>
+            </div>
+          </section>
+        </div>
+      </section>
+
+      <section class="page-section" data-page="logs">
+        <section class="panel-card">
+          <div class="panel-head">
+            <h2>Logs recentes</h2>
+            <span>Mensagens públicas, privadas e ações admin</span>
+          </div>
+          <div class="toolbar-row logs-toolbar">
+            <input id="logSearchInput" placeholder="buscar nos logs">
+            <select id="logTypeSelect">
+              <option value="all">Tudo</option>
+              <option value="public">Público</option>
+              <option value="private">Privado</option>
+              <option value="admin">Admin</option>
+            </select>
+            <button id="reloadLogsBtn" class="secondary-btn">Atualizar logs</button>
+          </div>
+          <div class="log-list" id="logsList"></div>
+        </section>
+      </section>
+
+      <section class="page-section" data-page="danger">
+        <section class="panel-card danger-panel">
+          <div class="panel-head">
+            <h2>Zona destrutiva</h2>
+            <span>Use só quando realmente precisar</span>
+          </div>
+          <div class="danger-grid">
+            <button class="secondary-btn" data-clear-scope="channels">Apagar salas privadas</button>
+            <button class="secondary-btn" data-clear-scope="public">Apagar mensagens públicas</button>
+            <button class="secondary-btn" data-clear-scope="private">Apagar mensagens privadas</button>
+            <button class="secondary-btn" data-clear-scope="images">Apagar imagens do chat</button>
+            <button class="danger-btn" data-clear-scope="all">Apagar tudo</button>
+          </div>
+          <p class="danger-help">Todas as ações aqui passam por confirmação e registram log quando a tabela <code>admin_logs</code> existir.</p>
+        </section>
+      </section>
+    </main>
+  </div>
+
+  <div id="feedbackToast" class="feedback-toast"></div>
+  <script src="js/admin.js"></script>
+</body>
+</html>
