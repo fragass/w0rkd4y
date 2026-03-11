@@ -64,7 +64,9 @@ let realtimeReady = false;
 let publicRealtimeChannel = null;
 let dmRealtimeChannel = null;
 let globalPresenceChannel = null;
-const typingUsersMap = new Map();
+
+/* typing separado por ambiente */
+const typingStateByRoom = new Map();
 
 function getActiveTypingRoomKey() {
   return chatMode === "dm" && currentRoom ? `dm:${currentRoom}` : "public";
@@ -72,6 +74,14 @@ function getActiveTypingRoomKey() {
 
 function getActiveTypingChannel() {
   return chatMode === "dm" && currentRoom ? dmRealtimeChannel : publicRealtimeChannel;
+}
+
+function getTypingMapForRoom(roomKey) {
+  const key = String(roomKey || "public");
+  if (!typingStateByRoom.has(key)) {
+    typingStateByRoom.set(key, new Map());
+  }
+  return typingStateByRoom.get(key);
 }
 
 async function initRealtimeClient() {
@@ -104,20 +114,34 @@ async function initRealtimeClient() {
 }
 
 function clearTypingUI() {
-  typingUsersMap.clear();
   const el = document.getElementById("typingStatus");
   if (el) el.textContent = "";
+}
+
+function pruneTypingMaps() {
+  const now = Date.now();
+
+  for (const [, roomMap] of typingStateByRoom.entries()) {
+    for (const [name, expiresAt] of roomMap.entries()) {
+      if (expiresAt <= now) {
+        roomMap.delete(name);
+      }
+    }
+  }
 }
 
 function setTypingUIFromMap() {
   const el = document.getElementById("typingStatus");
   if (!el) return;
 
-  const now = Date.now();
+  pruneTypingMaps();
+
+  const activeRoomKey = getActiveTypingRoomKey();
+  const roomMap = getTypingMapForRoom(activeRoomKey);
   const names = [];
 
-  for (const [name, expiresAt] of typingUsersMap.entries()) {
-    if (expiresAt > now && name !== loggedUser) {
+  for (const [name, expiresAt] of roomMap.entries()) {
+    if (expiresAt > Date.now() && name !== loggedUser) {
       names.push(name);
     }
   }
@@ -158,15 +182,17 @@ function bindTypingBroadcast(channel, roomKey) {
     if (payload.name === loggedUser) return;
 
     const payloadRoom = String(payload.room || "public");
-    if (payloadRoom !== String(roomKey || "public")) return;
+    const currentPayloadMap = getTypingMapForRoom(payloadRoom);
 
     if (payload.typing) {
-      typingUsersMap.set(payload.name, Date.now() + 2200);
+      currentPayloadMap.set(payload.name, Date.now() + 2200);
     } else {
-      typingUsersMap.delete(payload.name);
+      currentPayloadMap.delete(payload.name);
     }
 
-    setTypingUIFromMap();
+    if (payloadRoom === getActiveTypingRoomKey()) {
+      setTypingUIFromMap();
+    }
   });
 }
 
@@ -1350,6 +1376,7 @@ async function enterRoom(room) {
     await loadDmMessages({ forceScrollBottom: true });
     await setupDmRealtimeChannel(currentRoom);
 
+    setTypingUIFromMap();
     showOverlay(`Entrou na sala "${currentRoom}" ✅`, "success");
 
     if (isDocActive()) markAllSeen();
@@ -1394,6 +1421,7 @@ async function leaveRoom() {
   clearReplySelection();
 
   await loadPublicMessages({ forceScrollBottom: true });
+  setTypingUIFromMap();
   showOverlay(`Saiu da sala "${left}" ✅`, "success");
 
   if (isDocActive()) markAllSeen();
@@ -1752,6 +1780,7 @@ document.addEventListener("DOMContentLoaded", async () => {
   setHeader();
   renderReplyBar();
   updateImageAttachmentUI();
+  setTypingUIFromMap();
 
   await loadMessages();
   await loadOnlineUsers();
