@@ -455,6 +455,31 @@ function stripImagePlaceholder(text) {
     .trim();
 }
 
+function updateImageAttachmentUI() {
+  const textarea = document.getElementById("content");
+  const cancelImageBtn = document.getElementById("cancelImageBtn");
+  if (!textarea || !cancelImageBtn) return;
+
+  if (pendingImageUrl) {
+    const cleanValue = stripImagePlaceholder(textarea.value);
+    textarea.value = cleanValue
+      ? `${cleanValue}\n${IMAGE_READY_PLACEHOLDER}`
+      : IMAGE_READY_PLACEHOLDER;
+    cancelImageBtn.style.display = "inline-flex";
+  } else {
+    textarea.value = stripImagePlaceholder(textarea.value);
+    cancelImageBtn.style.display = "none";
+  }
+}
+
+function cancelPendingImage(showMessage = true) {
+  pendingImageUrl = null;
+  updateImageAttachmentUI();
+  if (showMessage) {
+    showOverlay("Imagem removida.", "info");
+  }
+}
+
 async function runAdminClearAll() {
   if (!currentUserIsAdmin) {
     showOverlay("Apenas admins podem usar /clear all", "error");
@@ -507,6 +532,7 @@ async function runAdminClearAll() {
 
   document.getElementById("messages").innerHTML = "";
   document.getElementById("content").value = "";
+  updateImageAttachmentUI();
 
   await loadMessages({ forceScrollBottom: true });
 
@@ -654,7 +680,9 @@ function loadEmojis() {
     span.textContent = emoji;
     span.onclick = () => {
       const textarea = document.getElementById("content");
-      textarea.value += emoji;
+      const currentText = stripImagePlaceholder(textarea.value);
+      textarea.value = currentText + emoji;
+      updateImageAttachmentUI();
       textarea.focus();
       onUserTyping();
     };
@@ -854,7 +882,16 @@ document.addEventListener("DOMContentLoaded", () => {
   });
 
   const contentInput = document.getElementById("content");
+  const cancelImageBtn = document.getElementById("cancelImageBtn");
   if (!contentInput) return;
+
+  if (cancelImageBtn) {
+    cancelImageBtn.addEventListener("click", () => {
+      cancelPendingImage(true);
+      contentInput.focus();
+      onUserTyping();
+    });
+  }
 
   contentInput.addEventListener("paste", async (event) => {
     const items = event.clipboardData?.items;
@@ -869,6 +906,36 @@ document.addEventListener("DOMContentLoaded", () => {
         }
       }
     }
+  });
+
+  contentInput.addEventListener("beforeinput", (event) => {
+    if (!pendingImageUrl) return;
+
+    const inputType = event.inputType || "";
+    const blockedTypes = [
+      "deleteContentBackward",
+      "deleteContentForward",
+      "deleteByCut",
+      "deleteByDrag"
+    ];
+
+    if (blockedTypes.includes(inputType)) {
+      event.preventDefault();
+      return;
+    }
+
+    if (inputType.startsWith("insert") && typeof event.data === "string" && event.data) {
+      const currentText = stripImagePlaceholder(contentInput.value);
+      contentInput.value = currentText + event.data;
+      updateImageAttachmentUI();
+      event.preventDefault();
+      onUserTyping();
+    }
+  });
+
+  contentInput.addEventListener("input", () => {
+    if (!pendingImageUrl) return;
+    updateImageAttachmentUI();
   });
 });
 
@@ -887,11 +954,8 @@ async function uploadImage(file) {
 
     if (data.url) {
       pendingImageUrl = data.url;
+      updateImageAttachmentUI();
       const textarea = document.getElementById("content");
-      const cleanValue = stripImagePlaceholder(textarea.value);
-      textarea.value = cleanValue
-        ? `${cleanValue}\n${IMAGE_READY_PLACEHOLDER}`
-        : IMAGE_READY_PLACEHOLDER;
       textarea.focus();
       showOverlay("Imagem anexada com sucesso ✅", "success");
       onUserTyping();
@@ -978,13 +1042,14 @@ async function sendTyping(isTyping) {
 
 function onUserTyping() {
   const input = document.getElementById("content");
-  const hasText = input && input.value.trim().length > 0;
+  const hasText = input && stripImagePlaceholder(input.value).trim().length > 0;
+  const hasPendingOnlyImage = !!pendingImageUrl;
   const isFocused = document.activeElement === input;
 
   clearTimeout(typingDebounceTimer);
   clearTimeout(typingStopTimer);
 
-  if (hasText && isFocused) {
+  if ((hasText || hasPendingOnlyImage) && isFocused) {
     typingDebounceTimer = setTimeout(() => sendTyping(true), 120);
     typingStopTimer = setTimeout(() => {
       sendTyping(false);
@@ -1247,13 +1312,19 @@ async function enterRoom(room) {
     currentRoom = data.channel.room;
     currentOther = data.channel.other;
 
-    await setupDmRealtimeChannel(currentRoom);
+    const messagesBox = document.getElementById("messages");
+    if (messagesBox) messagesBox.innerHTML = "";
 
-    setHeader();
+    lastMessageId = null;
     clearTypingUI();
     clearReplySelection();
+    setHeader();
+
     await sendTyping(false);
-    await loadMessages({ forceScrollBottom: true });
+
+    await loadDmMessages({ forceScrollBottom: true });
+    await setupDmRealtimeChannel(currentRoom);
+
     showOverlay(`Entrou na sala "${currentRoom}" ✅`, "success");
 
     if (isDocActive()) markAllSeen();
@@ -1286,10 +1357,15 @@ async function leaveRoom() {
   currentRoom = null;
   currentOther = null;
 
+  const messagesBox = document.getElementById("messages");
+  if (messagesBox) messagesBox.innerHTML = "";
+
+  lastMessageId = null;
   setHeader();
   clearTypingUI();
   clearReplySelection();
-  await loadMessages({ forceScrollBottom: true });
+
+  await loadPublicMessages({ forceScrollBottom: true });
   showOverlay(`Saiu da sala "${left}" ✅`, "success");
 
   if (isDocActive()) markAllSeen();
@@ -1330,6 +1406,7 @@ async function sendPublicMessage(text) {
 
   contentInput.value = "";
   pendingImageUrl = null;
+  updateImageAttachmentUI();
   clearReplySelection();
 
   if (to) showOverlay(`Sussurro enviado para @${to}`, "success");
@@ -1387,6 +1464,7 @@ async function sendDmMessage(text) {
 
   contentInput.value = "";
   pendingImageUrl = null;
+  updateImageAttachmentUI();
   clearReplySelection();
 }
 
@@ -1645,6 +1723,7 @@ document.addEventListener("DOMContentLoaded", async () => {
 
   setHeader();
   renderReplyBar();
+  updateImageAttachmentUI();
 
   await loadMessages();
   await loadOnlineUsers();
@@ -1653,4 +1732,6 @@ document.addEventListener("DOMContentLoaded", async () => {
 
 window.toggleEmojis = toggleEmojis;
 window.sendMessage = sendMessage;
+
+
 
