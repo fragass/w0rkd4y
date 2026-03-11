@@ -295,6 +295,27 @@
     }
     textarea:focus { border-color: #3a3d46; box-shadow: 0 0 0 2px rgba(255,255,255,.12); }
 
+    #cancelImageBtn {
+      height: 45px;
+      width: 45px;
+      min-width: 45px;
+      border-radius: 10px;
+      border: 1px solid rgba(255,255,255,.12);
+      background: #10151c;
+      color: #ffffff;
+      font-size: 18px;
+      cursor: pointer;
+      transition: all .2s ease;
+      display: none;
+      align-items: center;
+      justify-content: center;
+      padding: 0;
+    }
+    #cancelImageBtn:hover {
+      background: #151a21;
+      transform: translateY(-1px);
+    }
+
     button.send-btn {
       padding: 0 18px;
       height: 45px;
@@ -558,15 +579,13 @@
     }
     .message.whisper:hover { background: #332d46; }
 
-.message.dm {
-  background: #101826;
-  border: 1px solid rgba(88,166,255,0.35);
-  color: #dce7ff;
-}
-
-.message.dm:hover {
-  background: #142036;
-}
+    .message.dm {
+      background: #101826;
+      border: 1px solid rgba(88,166,255,0.35);
+      color: #dce7ff;
+      box-shadow: 0 0 0 1px rgba(88,166,255,0.08);
+    }
+    .message.dm:hover { background: #142036; }
 
     .overlay {
       position: fixed;
@@ -591,6 +610,7 @@
       body { padding: 8px; }
       .form { flex-direction: column; align-items: stretch; gap: 6px; }
       button.send-btn { width: 100%; }
+      #cancelImageBtn { width: 100%; }
       .emoji-panel { width: 90%; right: 5%; bottom: 80px; }
       #mini-profile {
         min-width: 0;
@@ -881,5 +901,4 @@ body.clearall-open {
     width: 100%;
   }
 }
-
 
