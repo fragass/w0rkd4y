@@ -88,50 +88,50 @@
       </div>
 
       <textarea id="content" placeholder="Escreva uma mensagem... (use CTRL + V para enviar imagens)"></textarea>
+      <button type="button" id="cancelImageBtn" title="Cancelar imagem anexada" aria-label="Cancelar imagem anexada">✕</button>
       <span class="emoji-toggle" onclick="toggleEmojis()">🙂</span>
       <button class="send-btn" onclick="sendMessage()">Enviar</button>
       <div class="emoji-panel" id="emojiPanel"></div>
     </div>
   </div>
 
-<span style="position:fixed; bottom:10px; left:10px; opacity:.6; font-size:11px; z-index:999;">
-v1.1.0.2026.03.10
-</span>
+  <span style="position:fixed; bottom:10px; left:10px; opacity:.6; font-size:11px; z-index:999;">
+    v1.0.0.2026.03.08
+  </span>
 
   <div id="logout-modal" class="confirm-modal" aria-hidden="true">
-  <div class="confirm-modal-backdrop"></div>
+    <div class="confirm-modal-backdrop"></div>
 
-  <div class="confirm-modal-card" role="dialog" aria-modal="true" aria-labelledby="logout-modal-title">
-    <div class="confirm-modal-icon">⚠️</div>
-    <h3 id="logout-modal-title">Sair da conta?</h3>
-    <p>Você tem certeza que deseja encerrar sua sessão agora?</p>
+    <div class="confirm-modal-card" role="dialog" aria-modal="true" aria-labelledby="logout-modal-title">
+      <div class="confirm-modal-icon">⚠️</div>
+      <h3 id="logout-modal-title">Sair da conta?</h3>
+      <p>Você tem certeza que deseja encerrar sua sessão agora?</p>
 
-    <div class="confirm-modal-actions">
-      <button type="button" id="cancel-logout" class="confirm-btn confirm-btn-secondary">Cancelar</button>
-      <button type="button" id="confirm-logout" class="confirm-btn confirm-btn-danger">Sair</button>
+      <div class="confirm-modal-actions">
+        <button type="button" id="cancel-logout" class="confirm-btn confirm-btn-secondary">Cancelar</button>
+        <button type="button" id="confirm-logout" class="confirm-btn confirm-btn-danger">Sair</button>
+      </div>
     </div>
   </div>
-</div>
 
-<div id="clearall-modal" class="clearall-modal" aria-hidden="true">
-  <div class="clearall-backdrop"></div>
+  <div id="clearall-modal" class="clearall-modal" aria-hidden="true">
+    <div class="clearall-backdrop"></div>
 
-  <div class="clearall-card" role="dialog" aria-modal="true" aria-labelledby="clearall-title">
-    <div class="clearall-icon">🗑️</div>
-    <h3 id="clearall-title">Limpar tudo?</h3>
-    <p>Isso vai apagar todas as mensagens para todos. Essa ação não pode ser desfeita.</p>
+    <div class="clearall-card" role="dialog" aria-modal="true" aria-labelledby="clearall-title">
+      <div class="clearall-icon">🗑️</div>
+      <h3 id="clearall-title">Limpar tudo?</h3>
+      <p>Isso vai apagar todas as mensagens para todos. Essa ação não pode ser desfeita.</p>
 
-    <div class="clearall-actions">
-      <button type="button" id="clearall-cancel" class="clearall-btn clearall-btn-secondary">Cancelar</button>
-      <button type="button" id="clearall-confirm" class="clearall-btn clearall-btn-danger">Limpar tudo</button>
+      <div class="clearall-actions">
+        <button type="button" id="clearall-cancel" class="clearall-btn clearall-btn-secondary">Cancelar</button>
+        <button type="button" id="clearall-confirm" class="clearall-btn clearall-btn-danger">Limpar tudo</button>
+      </div>
     </div>
   </div>
-</div>
   
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
   <script src="js/main.js"></script>
   
 </body>
 </html>
-
 
