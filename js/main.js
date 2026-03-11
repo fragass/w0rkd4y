@@ -1632,9 +1632,19 @@ document.addEventListener("DOMContentLoaded", async () => {
   const arrow = document.getElementById("arrow");
   const contentInput = document.getElementById("content");
   const avatarInput = document.getElementById("profile-avatar-input");
+  const adminPanelLink = document.getElementById("adminPanelLink");
 
   restoreBadgeOnLoad();
   loadProfile();
+
+  if (adminPanelLink) {
+    if (currentUserIsAdmin) {
+      adminPanelLink.style.display = "inline-flex";
+      adminPanelLink.href = "admin.html";
+    } else {
+      adminPanelLink.style.display = "none";
+    }
+  }
 
   await setupRealtime();
 
