@@ -902,3 +902,59 @@ body.clearall-open {
   }
 }
 
+
+
+    .mention-autocomplete {
+      position: absolute;
+      left: 14px;
+      right: 132px;
+      bottom: 68px;
+      display: none;
+      flex-direction: column;
+      gap: 6px;
+      max-height: 220px;
+      overflow-y: auto;
+      padding: 8px;
+      border-radius: 12px;
+      border: 1px solid rgba(255,255,255,.08);
+      background: #151a21;
+      box-shadow: 0 14px 30px rgba(0,0,0,.45);
+      z-index: 60;
+    }
+
+    .mention-item {
+      width: 100%;
+      border: 1px solid transparent;
+      background: rgba(255,255,255,.03);
+      color: #e6edf3;
+      border-radius: 10px;
+      padding: 10px 12px;
+      display: flex;
+      align-items: center;
+      gap: 2px;
+      cursor: pointer;
+      transition: background .18s ease, border-color .18s ease, transform .18s ease;
+      text-align: left;
+      font: inherit;
+    }
+
+    .mention-item:hover,
+    .mention-item.active {
+      background: rgba(88,166,255,.12);
+      border-color: rgba(88,166,255,.28);
+      transform: translateY(-1px);
+    }
+
+    .mention-item-at {
+      color: #58a6ff;
+      font-weight: 700;
+    }
+
+    .mention-item-name {
+      color: #ffffff;
+      font-weight: 600;
+      min-width: 0;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
