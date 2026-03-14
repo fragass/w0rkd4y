@@ -63,6 +63,7 @@ let supabaseClient = null;
 let realtimeReady = false;
 let publicRealtimeChannel = null;
 let dmRealtimeChannel = null;
+let registeredUsers = new Set();
 let globalPresenceChannel = null;
 
 /* typing separado por ambiente */
@@ -649,6 +650,26 @@ function getNameWithBadgeHTML(name, isAdmin, color = "#ffffff") {
   `;
 }
 
+async function loadRegisteredUsers() {
+  try {
+    const res = await apiFetch("users/list");
+    const data = await res.json();
+
+    if (res.ok && data?.success && Array.isArray(data.users)) {
+      registeredUsers = new Set(
+        data.users
+          .map(user => String(user?.username || "").trim().toLowerCase())
+          .filter(Boolean)
+      );
+    } else {
+      registeredUsers = new Set();
+    }
+  } catch (err) {
+    console.error("Erro carregando usuários cadastrados:", err);
+    registeredUsers = new Set();
+  }
+}
+
 function showWelcomeScreen(profile) {
   const screen = document.getElementById("welcome-screen");
   const avatar = document.getElementById("welcome-avatar");
@@ -670,7 +691,11 @@ function showWelcomeScreen(profile) {
 function highlightMentions(text) {
   const escaped = escapeHTML(text);
   return escaped.replace(/@(\w+)/g, (match, username) => {
-    if (username === loggedUser) return `<span class="mention-self">@${username}</span>`;
+    const normalizedUsername = String(username || "").toLowerCase();
+    const normalizedLoggedUser = String(loggedUser || "").toLowerCase();
+
+    if (!registeredUsers.has(normalizedUsername)) return match;
+    if (normalizedUsername === normalizedLoggedUser) return `<span class="mention-self">@${username}</span>`;
     return `<span class="mention">@${username}</span>`;
   });
 }
@@ -1646,6 +1671,7 @@ document.addEventListener("DOMContentLoaded", async () => {
     }
   }
 
+  await loadRegisteredUsers();
   await setupRealtime();
 
   miniProfile.onclick = () => {
