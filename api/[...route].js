@@ -376,6 +376,16 @@ async function handleMessages(req, res) {
         return sendJson(res, 400, { error: "Missing fields" });
       }
 
+      if (to) {
+        const whisperTargetExists = await userExists(to, false);
+        if (!whisperTargetExists) {
+          return sendJson(res, 400, {
+            success: false,
+            error: "Usuário do sussurro não existe",
+          });
+        }
+      }
+
       async function canReplyToMessage(original) {
         if (!original) return false;
         if (!original.to) return true;
@@ -840,6 +850,33 @@ async function handleChatUpload(req, res) {
     return sendJson(res, 500, { error: "Erro interno no upload" });
   } finally {
     await safeCleanupFile(tempFilePath);
+  }
+}
+
+async function handleUsersList(req, res) {
+  if (req.method !== "GET") {
+    return sendJson(res, 405, { success: false, error: "Method not allowed" });
+  }
+
+  try {
+    const { data, error } = await supabaseAnon
+      .from("users")
+      .select("username")
+      .order("username", { ascending: true });
+
+    if (error) {
+      return sendJson(res, 500, { success: false, error: error.message });
+    }
+
+    return sendJson(res, 200, {
+      success: true,
+      users: Array.isArray(data) ? data : [],
+    });
+  } catch (error) {
+    return sendJson(res, 500, {
+      success: false,
+      error: error.message || "Erro interno",
+    });
   }
 }
 
@@ -1813,6 +1850,7 @@ async function handler(req, res) {
   if (routeKey === "profile") return handleProfile(req, res);
   if (routeKey === "profile-upload") return handleProfileUpload(req, res);
   if (routeKey === "upload") return handleChatUpload(req, res);
+  if (routeKey === "users/list") return handleUsersList(req, res);
   if (routeKey === "admin/stats") return handleAdminStats(req, res);
   if (routeKey === "admin/users") return handleAdminUsers(req, res);
   if (routeKey === "admin/users/create") return handleAdminUserCreate(req, res);
