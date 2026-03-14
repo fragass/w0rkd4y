@@ -169,6 +169,22 @@ async function getProfileMap(usernames, useService = false) {
   return map;
 }
 
+async function userExists(username, useService = false) {
+  const cleanUsername = String(username || "").trim();
+  if (!cleanUsername) return false;
+
+  const client = useService ? supabaseService : supabaseAnon;
+
+  const { data, error } = await client
+    .from("users")
+    .select("username")
+    .eq("username", cleanUsername)
+    .maybeSingle();
+
+  if (error) return false;
+  return !!data?.username;
+}
+
 async function isAdminUser(username) {
   const { data, error } = await supabaseService
     .from("users")
@@ -1515,6 +1531,20 @@ async function handleDmCreate(req, res) {
       });
     }
 
+    if (!(await userExists(creator, true))) {
+      return sendJson(res, 400, {
+        success: false,
+        error: "Usuário criador não existe",
+      });
+    }
+
+    if (!(await userExists(target, true))) {
+      return sendJson(res, 400, {
+        success: false,
+        error: "Usuário marcado não existe",
+      });
+    }
+
     if (!/^[A-Za-z0-9_-]{3,32}$/.test(roomWanted)) {
       return sendJson(res, 400, {
         success: false,
@@ -1875,4 +1905,3 @@ module.exports.config = {
     bodyParser: false,
   },
 };
-
