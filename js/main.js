@@ -64,7 +64,13 @@ let realtimeReady = false;
 let publicRealtimeChannel = null;
 let dmRealtimeChannel = null;
 let registeredUsers = new Set();
+let registeredUsersList = [];
+let registeredUsersMap = new Map();
 let globalPresenceChannel = null;
+
+let mentionSuggestions = [];
+let mentionActiveIndex = -1;
+let mentionQueryState = null;
 
 /* typing separado por ambiente */
 const typingStateByRoom = new Map();
@@ -656,18 +662,138 @@ async function loadRegisteredUsers() {
     const data = await res.json();
 
     if (res.ok && data?.success && Array.isArray(data.users)) {
-      registeredUsers = new Set(
-        data.users
-          .map(user => String(user?.username || "").trim().toLowerCase())
-          .filter(Boolean)
+      const cleanedUsers = data.users
+        .map(user => String(user?.username || "").trim())
+        .filter(Boolean);
+
+      registeredUsersList = cleanedUsers;
+      registeredUsersMap = new Map(
+        cleanedUsers.map(username => [username.toLowerCase(), username])
       );
+      registeredUsers = new Set(registeredUsersMap.keys());
     } else {
       registeredUsers = new Set();
+      registeredUsersList = [];
+      registeredUsersMap = new Map();
     }
   } catch (err) {
     console.error("Erro carregando usuários cadastrados:", err);
     registeredUsers = new Set();
+    registeredUsersList = [];
+    registeredUsersMap = new Map();
   }
+}
+
+function getMentionDropdown() {
+  return document.getElementById("mentionAutocomplete");
+}
+
+function hideMentionAutocomplete() {
+  const dropdown = getMentionDropdown();
+  mentionSuggestions = [];
+  mentionActiveIndex = -1;
+  mentionQueryState = null;
+  if (dropdown) {
+    dropdown.innerHTML = "";
+    dropdown.style.display = "none";
+  }
+}
+
+function getMentionQueryAtCursor(text, cursorPos) {
+  const beforeCursor = String(text || "").slice(0, Math.max(0, cursorPos));
+  const match = beforeCursor.match(/(^|\s)@([A-Za-z0-9_]*)$/);
+  if (!match) return null;
+
+  return {
+    query: String(match[2] || ""),
+    start: beforeCursor.length - match[2].length - 1,
+    end: beforeCursor.length,
+  };
+}
+
+function renderMentionAutocomplete() {
+  const dropdown = getMentionDropdown();
+  if (!dropdown) return;
+
+  if (!mentionSuggestions.length || !mentionQueryState) {
+    hideMentionAutocomplete();
+    return;
+  }
+
+  dropdown.innerHTML = mentionSuggestions.map((username, index) => {
+    const safeName = escapeHTML(username);
+    const selectedClass = index === mentionActiveIndex ? " active" : "";
+    return `
+      <button type="button" class="mention-item${selectedClass}" data-mention-username="${safeName}" data-mention-index="${index}">
+        <span class="mention-item-at">@</span>
+        <span class="mention-item-name">${safeName}</span>
+      </button>
+    `;
+  }).join("");
+
+  dropdown.style.display = "flex";
+}
+
+function applyMentionSuggestion(username) {
+  const contentInput = document.getElementById("content");
+  if (!contentInput || !mentionQueryState || !username) return;
+
+  const original = contentInput.value;
+  const before = original.slice(0, mentionQueryState.start);
+  const after = original.slice(mentionQueryState.end);
+  const insertion = `@${username} `;
+
+  contentInput.value = `${before}${insertion}${after}`;
+
+  const nextCursor = before.length + insertion.length;
+  contentInput.focus();
+  contentInput.setSelectionRange(nextCursor, nextCursor);
+
+  hideMentionAutocomplete();
+  onUserTyping();
+}
+
+function moveMentionSelection(direction) {
+  if (!mentionSuggestions.length) return;
+
+  if (mentionActiveIndex < 0) {
+    mentionActiveIndex = direction > 0 ? 0 : mentionSuggestions.length - 1;
+  } else {
+    mentionActiveIndex = (mentionActiveIndex + direction + mentionSuggestions.length) % mentionSuggestions.length;
+  }
+
+  renderMentionAutocomplete();
+}
+
+function updateMentionAutocomplete() {
+  const contentInput = document.getElementById("content");
+  const dropdown = getMentionDropdown();
+  if (!contentInput || !dropdown) return;
+
+  const queryState = getMentionQueryAtCursor(contentInput.value, contentInput.selectionStart || 0);
+  if (!queryState) {
+    hideMentionAutocomplete();
+    return;
+  }
+
+  const normalizedQuery = queryState.query.toLowerCase();
+  const suggestions = registeredUsersList
+    .filter(username => username.toLowerCase().startsWith(normalizedQuery))
+    .slice(0, 8);
+
+  if (!suggestions.length) {
+    hideMentionAutocomplete();
+    return;
+  }
+
+  mentionQueryState = queryState;
+  mentionSuggestions = suggestions;
+
+  if (mentionActiveIndex < 0 || mentionActiveIndex >= suggestions.length) {
+    mentionActiveIndex = 0;
+  }
+
+  renderMentionAutocomplete();
 }
 
 function showWelcomeScreen(profile) {
@@ -1659,6 +1785,13 @@ document.addEventListener("DOMContentLoaded", async () => {
   const avatarInput = document.getElementById("profile-avatar-input");
   const adminPanelLink = document.getElementById("adminPanelLink");
 
+  if (contentInput && !document.getElementById("mentionAutocomplete")) {
+    const mentionDropdown = document.createElement("div");
+    mentionDropdown.id = "mentionAutocomplete";
+    mentionDropdown.className = "mention-autocomplete";
+    contentInput.insertAdjacentElement("afterend", mentionDropdown);
+  }
+
   restoreBadgeOnLoad();
   loadProfile();
 
@@ -1799,19 +1932,70 @@ document.addEventListener("DOMContentLoaded", async () => {
   });
 
   contentInput.addEventListener("keydown", e => {
+    const mentionOpen = !!mentionSuggestions.length && !!mentionQueryState;
+
+    if (mentionOpen && e.key === "ArrowDown") {
+      e.preventDefault();
+      moveMentionSelection(1);
+      return;
+    }
+
+    if (mentionOpen && e.key === "ArrowUp") {
+      e.preventDefault();
+      moveMentionSelection(-1);
+      return;
+    }
+
+    if (mentionOpen && (e.key === "Enter" || e.key === "Tab") && mentionActiveIndex >= 0) {
+      e.preventDefault();
+      applyMentionSuggestion(mentionSuggestions[mentionActiveIndex]);
+      return;
+    }
+
+    if (mentionOpen && e.key === "Escape") {
+      e.preventDefault();
+      hideMentionAutocomplete();
+      return;
+    }
+
     if (e.key === "Enter" && !e.shiftKey) {
       e.preventDefault();
       sendMessage();
     }
   });
 
-  contentInput.addEventListener("input", () => onUserTyping());
+  contentInput.addEventListener("input", () => {
+    onUserTyping();
+    updateMentionAutocomplete();
+  });
+  contentInput.addEventListener("click", () => updateMentionAutocomplete());
+  contentInput.addEventListener("keyup", () => updateMentionAutocomplete());
   contentInput.addEventListener("focus", () => {
     onUserTyping();
+    updateMentionAutocomplete();
     markAllSeen();
     refreshOwnPresence();
   });
-  contentInput.addEventListener("blur", () => sendTyping(false));
+  contentInput.addEventListener("blur", () => {
+    setTimeout(() => hideMentionAutocomplete(), 120);
+    sendTyping(false);
+  });
+
+  document.addEventListener("mousedown", (e) => {
+    const dropdown = getMentionDropdown();
+    if (!dropdown) return;
+
+    const mentionButton = e.target.closest("[data-mention-username]");
+    if (mentionButton) {
+      e.preventDefault();
+      applyMentionSuggestion(mentionButton.getAttribute("data-mention-username") || "");
+      return;
+    }
+
+    if (e.target !== contentInput && !dropdown.contains(e.target)) {
+      hideMentionAutocomplete();
+    }
+  });
 
   setHeader();
   renderReplyBar();
