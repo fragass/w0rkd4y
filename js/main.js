@@ -644,7 +644,7 @@ function getMessageAvatarSrc(msg) {
 }
 
 function getAdminBadgeHTML(isAdmin) {
-  return isAdmin ? `<span class="admin-badge">ADMIN</span>` : "";
+  return isAdmin ? `<span class="admin-badge">dev</span>` : "";
 }
 
 function getNameWithBadgeHTML(name, isAdmin, color = "#ffffff") {
