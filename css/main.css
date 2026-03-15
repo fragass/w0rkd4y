@@ -26,14 +26,22 @@ body {
 #welcome-screen {
   position: fixed;
   inset: 0;
-  background: rgba(13,16,20,0.98);
+  background: #0d1014;
   display: flex;
   align-items: center;
   justify-content: center;
-  z-index: 99999;
+  z-index: 999999;
   opacity: 1;
   visibility: visible;
   transition: opacity .45s ease, visibility .45s ease;
+}
+
+#welcome-screen::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background: #0d1014;
+  z-index: 0;
 }
 
 #welcome-screen.hidden {
