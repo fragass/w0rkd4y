@@ -37,14 +37,6 @@ body {
   transition: opacity .45s ease, visibility .45s ease;
 }
 
-#welcome-screen::before {
-  content: "";
-  position: absolute;
-  inset: 0;
-  background: #0d1014;
-  z-index: 0;
-}
-
 #welcome-screen.hidden {
   opacity: 0;
   visibility: hidden;
