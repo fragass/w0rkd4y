@@ -279,7 +279,16 @@ async function setupPublicRealtimeChannel() {
   publicRealtimeChannel.on(
     "postgres_changes",
     { event: "*", schema: "public", table: "messages" },
-    async () => {
+    async (payload) => {
+      const insertedGlobalAnnouncement =
+        payload?.eventType === "INSERT" &&
+        payload?.new?.is_global === true;
+
+      if (insertedGlobalAnnouncement) {
+        showAnnouncementOverlay(payload.new);
+        return;
+      }
+
       if (chatMode === "public") {
         await loadPublicMessages({ forceScrollBottom: true });
       }
@@ -843,6 +852,44 @@ function showOverlay(msg, type = "info") {
   }, 2200);
 }
 
+function closeAnnouncementOverlay(overlay) {
+  if (!overlay) return;
+  overlay.style.opacity = "0";
+  overlay.style.transform = "translate(-50%, -8px)";
+  setTimeout(() => overlay.remove(), 260);
+}
+
+function showAnnouncementOverlay(msg) {
+  if (!msg || !msg.content) return;
+
+  const existing = document.querySelector(".announcement-overlay");
+  if (existing) existing.remove();
+
+  const overlay = document.createElement("div");
+  overlay.className = "announcement-overlay";
+
+  const author = String(msg.display_name || msg.name || "Admin").trim();
+  const content = String(msg.content || "").trim();
+
+  overlay.innerHTML = `
+    <div class="announcement-overlay__badge">📢 ANÚNCIO GLOBAL</div>
+    <div class="announcement-overlay__author">Enviado por ${escapeHTML(author)}</div>
+    <div class="announcement-overlay__content">${highlightMentions(content)}</div>
+    <button type="button" class="announcement-overlay__close" aria-label="Fechar anúncio">✕</button>
+  `;
+
+  const closeButton = overlay.querySelector(".announcement-overlay__close");
+  closeButton?.addEventListener("click", () => closeAnnouncementOverlay(overlay));
+
+  document.body.appendChild(overlay);
+
+  setTimeout(() => {
+    if (overlay.isConnected) {
+      closeAnnouncementOverlay(overlay);
+    }
+  }, 8500);
+}
+
 function setHeader() {
   const el = document.getElementById("headerTitle");
   if (chatMode === "dm" && currentRoom) {
@@ -1201,6 +1248,16 @@ function isClearAllCommand(text) {
   return /^\/clear\s+all\s*$/i.test(String(text || "").trim());
 }
 
+function parseAnnouncementCommand(text) {
+  const match = String(text || "").trim().match(/^\/anuncio\s+([\s\S]+)$/i);
+  if (!match) return null;
+
+  const message = String(match[1] || "").trim();
+  if (!message) return { message: "" };
+
+  return { message };
+}
+
 async function sendTyping(isTyping) {
   if (!loggedUser) return;
 
@@ -1273,7 +1330,9 @@ async function loadPublicMessages(options = {}) {
 
     if (chatMode !== "public" || renderVersion !== publicRenderVersion) return;
 
-    const visibleMessages = Array.isArray(data) ? data.filter(msg => canUserSeeMessage(msg)) : [];
+    const visibleMessages = Array.isArray(data)
+      ? data.filter(msg => !msg.is_global && canUserSeeMessage(msg))
+      : [];
 
     bumpBadgeFromMessages(visibleMessages, "public");
 
@@ -1619,6 +1678,36 @@ async function sendPublicMessage(text) {
   if (to) showOverlay(`Sussurro enviado para @${to}`, "success");
 }
 
+async function sendPublicAnnouncement(text) {
+  const contentInput = document.getElementById("content");
+  const announcementText = String(text || "").trim();
+
+  if (!announcementText) {
+    throw new Error("Digite a mensagem do anúncio.");
+  }
+
+  const res = await apiFetch("messages", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      name: loggedUser,
+      content: announcementText,
+      is_global: true,
+    })
+  });
+
+  if (!res.ok) {
+    const err = await safeReadJson(res);
+    throw new Error(err?.message || err?.error || "Falha ao enviar anúncio");
+  }
+
+  contentInput.value = "";
+  pendingImageUrl = null;
+  updateImageAttachmentUI();
+  clearReplySelection();
+  showOverlay("Anúncio global enviado ✅", "success");
+}
+
 async function sendDmMessage(text) {
   const contentInput = document.getElementById("content");
   text = stripImagePlaceholder(text);
@@ -1728,6 +1817,41 @@ async function sendMessage() {
     contentInput.value = "";
     await leaveRoom();
     onUserTyping();
+    return;
+  }
+
+  const announcement = parseAnnouncementCommand(text);
+
+  if (announcement) {
+    contentInput.value = "";
+
+    if (!currentUserIsAdmin) {
+      showOverlay("Somente admin pode usar /anuncio.", "error");
+      onUserTyping();
+      return;
+    }
+
+    if (!announcement.message) {
+      showOverlay("Use /anuncio seguido da mensagem.", "error");
+      onUserTyping();
+      return;
+    }
+
+    if (pendingImageUrl) {
+      showOverlay("O comando /anuncio aceita apenas texto.", "error");
+      onUserTyping();
+      return;
+    }
+
+    try {
+      await sendTyping(false);
+      await sendPublicAnnouncement(announcement.message);
+    } catch (e) {
+      console.error("Erro ao enviar anúncio:", e);
+      showOverlay(e.message || "Falha ao enviar anúncio", "error");
+    } finally {
+      onUserTyping();
+    }
     return;
   }
 
