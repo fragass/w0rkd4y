@@ -386,13 +386,27 @@ async function handleMessages(req, res) {
         to = null,
         reply_to = null,
         reply_preview = null,
+        is_global = false,
       } = body || {};
 
       if (!name || (!content && !image_url)) {
         return sendJson(res, 400, { error: "Missing fields" });
       }
 
-      if (to) {
+      const wantsGlobalAnnouncement = is_global === true;
+
+      if (wantsGlobalAnnouncement) {
+        await requireAdminAccess(name);
+
+        if (image_url) {
+          return sendJson(res, 400, {
+            success: false,
+            error: "Anúncio global aceita apenas texto",
+          });
+        }
+      }
+
+      if (to && !wantsGlobalAnnouncement) {
         const whisperTargetExists = await userExists(to, false);
         if (!whisperTargetExists) {
           return sendJson(res, 400, {
@@ -403,7 +417,7 @@ async function handleMessages(req, res) {
       }
 
       async function canReplyToMessage(original) {
-        if (!original) return false;
+        if (!original || original.is_global) return false;
         if (!original.to) return true;
         return original.to === name || original.name === name;
       }
@@ -456,15 +470,21 @@ async function handleMessages(req, res) {
         if (!finalReplyPreview) finalReplyTo = null;
       }
 
+      if (wantsGlobalAnnouncement) {
+        finalReplyTo = null;
+        finalReplyPreview = null;
+      }
+
       const insertBody = {
         name,
         content: content || "🖼 Imagem",
-        to,
-        reply_to: finalReplyTo,
-        reply_preview: finalReplyPreview,
+        to: wantsGlobalAnnouncement ? null : to,
+        reply_to: wantsGlobalAnnouncement ? null : finalReplyTo,
+        reply_preview: wantsGlobalAnnouncement ? null : finalReplyPreview,
+        is_global: wantsGlobalAnnouncement,
       };
 
-      if (image_url) insertBody.image_url = image_url;
+      if (image_url && !wantsGlobalAnnouncement) insertBody.image_url = image_url;
 
       const { error } = await supabaseAnon
         .from(PUBLIC_MESSAGES_TABLE)
