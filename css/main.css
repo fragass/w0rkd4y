@@ -691,17 +691,17 @@ button.send-btn:hover {
 
   background: linear-gradient(
       180deg,
-      rgba(255,196,0,0.10) 0%,
+      rgba(239,68,68,0.12) 0%,
       rgba(18,24,33,0.98) 100%
   );
 
-  border: 1px solid rgba(255,196,0,0.25);
-  border-left: 5px solid #ffc400;
+  border: 1px solid rgba(239,68,68,0.35);
+  border-left: 5px solid #ef4444;
   border-radius: 16px;
 
   box-shadow:
     0 24px 50px rgba(0,0,0,.42),
-    0 0 0 1px rgba(255,196,0,0.05) inset;
+    0 0 0 1px rgba(239,68,68,0.08) inset;
 
   padding: 16px 52px 16px 16px;
   z-index: 10002;
@@ -722,10 +722,10 @@ button.send-btn:hover {
 
   border-radius: 999px;
 
-  background: rgba(255,196,0,.14);
-  border: 1px solid rgba(255,196,0,.25);
+  background: rgba(239,68,68,.14);
+  border: 1px solid rgba(239,68,68,.28);
 
-  color: #ffe082;
+  color: #fecaca;
 
   font-size: 11px;
   font-weight: 800;
@@ -742,7 +742,7 @@ button.send-btn:hover {
 }
 
 .announcement-overlay__content {
-  color: #fffdf5;
+  color: #fff5f5;
   font-size: 15px;
   line-height: 1.5;
   font-weight: 600;
