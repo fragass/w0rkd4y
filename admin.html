@@ -26,6 +26,7 @@
       <nav class="sidebar-nav">
         <button class="nav-btn active" data-section="dashboard">Dashboard</button>
         <button class="nav-btn" data-section="users">Usuários</button>
+        <button class="nav-btn" data-section="keys">Keys</button>
         <button class="nav-btn" data-section="logs">Logs</button>
         <button class="nav-btn" data-section="danger">Moderação</button>
       </nav>
@@ -59,6 +60,8 @@
           <article class="stat-card"><span>Mensagens privadas</span><strong id="statPrivate">--</strong></article>
           <article class="stat-card"><span>Salas privadas</span><strong id="statRooms">--</strong></article>
           <article class="stat-card"><span>Imagens registradas</span><strong id="statImages">--</strong></article>
+          <article class="stat-card"><span>Keys ativas</span><strong id="statKeysActive">--</strong></article>
+          <article class="stat-card"><span>Keys usadas</span><strong id="statKeysUsed">--</strong></article>
         </div>
 
         <div class="grid-two">
@@ -128,6 +131,62 @@
         </div>
       </section>
 
+      <section class="page-section" data-page="keys">
+        <div class="grid-two users-layout">
+          <section class="panel-card">
+            <div class="panel-head">
+              <h2>Gerar key</h2>
+              <span>Convite único, cadastro sem register aberto</span>
+            </div>
+            <form id="createKeyForm" class="form-grid">
+              <input name="label" placeholder="rótulo / observação (opcional)" maxlength="80">
+              <input name="expires_in_days" type="number" min="0" max="365" step="1" placeholder="expira em dias (0 = sem expiração)">
+              <button type="submit" class="primary-btn form-submit">Gerar key</button>
+            </form>
+            <div class="generated-key-box" id="generatedKeyBox" hidden>
+              <div class="generated-key-label">Última key gerada</div>
+              <div class="generated-key-row">
+                <code id="generatedKeyValue">--</code>
+                <button id="copyGeneratedKeyBtn" type="button" class="secondary-btn">Copiar</button>
+              </div>
+            </div>
+          </section>
+
+          <section class="panel-card">
+            <div class="panel-head">
+              <h2>Buscar keys</h2>
+              <span>Ativas, usadas e revogadas</span>
+            </div>
+            <div class="toolbar-row key-toolbar">
+              <input id="keySearchInput" placeholder="buscar por key, rótulo ou usuário">
+              <select id="keyStatusSelect">
+                <option value="all">Todas</option>
+                <option value="active">Ativas</option>
+                <option value="used">Usadas</option>
+                <option value="revoked">Revogadas</option>
+                <option value="expired">Expiradas</option>
+              </select>
+              <button id="reloadKeysBtn" class="secondary-btn">Atualizar keys</button>
+            </div>
+            <div class="table-wrap">
+              <table>
+                <thead>
+                  <tr>
+                    <th>Key</th>
+                    <th>Status</th>
+                    <th>Rótulo</th>
+                    <th>Uso</th>
+                    <th>Criada em</th>
+                    <th>Ações</th>
+                  </tr>
+                </thead>
+                <tbody id="keysTableBody"></tbody>
+              </table>
+            </div>
+          </section>
+        </div>
+      </section>
+
       <section class="page-section" data-page="logs">
         <section class="panel-card">
           <div class="panel-head">
@@ -155,13 +214,12 @@
             <span>Use só quando realmente precisar</span>
           </div>
           <div class="danger-grid">
-            <button class="secondary-btn" data-clear-scope="channels">Apagar salas privadas</button>
-            <button class="secondary-btn" data-clear-scope="public">Apagar mensagens públicas</button>
-            <button class="secondary-btn" data-clear-scope="private">Apagar mensagens privadas</button>
-            <button class="secondary-btn" data-clear-scope="images">Apagar imagens do chat</button>
+            <button class="danger-btn" data-clear-scope="public">Apagar só público</button>
+            <button class="danger-btn" data-clear-scope="private">Apagar só privado</button>
+            <button class="danger-btn" data-clear-scope="images">Apagar imagens</button>
             <button class="danger-btn" data-clear-scope="all">Apagar tudo</button>
           </div>
-          <p class="danger-help">Todas as ações aqui passam por confirmação e registram log quando a tabela <code>admin_logs</code> existir.</p>
+          <p class="danger-help">As ações acima também entram nos logs admin. Faz besteira aqui e fica registrado.</p>
         </section>
       </section>
     </main>
