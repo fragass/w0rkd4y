@@ -1,47 +1,41 @@
 const loginForm = document.getElementById("loginForm");
+const registerForm = document.getElementById("registerForm");
 const errorMsg = document.getElementById("errorMsg");
-const successMsg = document.getElementById("successMsg");
-const toggleKeyAccessBtn = document.getElementById("toggleKeyAccessBtn");
-const keyAccessPanel = document.getElementById("keyAccessPanel");
-const keyValidationForm = document.getElementById("keyValidationForm");
-const registerWithKeyForm = document.getElementById("registerWithKeyForm");
-const inviteKeyInput = document.getElementById("inviteKeyInput");
-const validatedKeyText = document.getElementById("validatedKeyText");
+const keyMsg = document.getElementById("keyMsg");
+const keyPanel = document.getElementById("keyPanel");
+const toggleKeyBtn = document.getElementById("toggleKeyBtn");
+const validateKeyBtn = document.getElementById("validateKeyBtn");
+const keyInput = document.getElementById("keyInput");
 
-let validatedInviteKey = null;
+let validatedInvite = null;
 
 function setError(message = "") {
   errorMsg.textContent = message;
-  if (message) successMsg.textContent = "";
 }
 
-function setSuccess(message = "") {
-  successMsg.textContent = message;
-  if (message) errorMsg.textContent = "";
+function setKeyMessage(message = "", type = "") {
+  keyMsg.textContent = message;
+  keyMsg.className = "helper-text";
+  if (type) keyMsg.classList.add(type);
 }
 
-function normalizeKey(value) {
-  return String(value || "").trim().toUpperCase();
+function openKeyPanel() {
+  keyPanel.hidden = false;
+  toggleKeyBtn.setAttribute("aria-expanded", "true");
 }
 
-function applyLogin(result) {
-  sessionStorage.setItem("token", result.token);
-  sessionStorage.setItem("loggedUser", result.user);
-  sessionStorage.setItem("isAdmin", result.isAdmin ? "true" : "false");
-  window.location.href = "8617a543f74d88b440f5ba33e1713f063665240f.html";
+function closeKeyPanel() {
+  keyPanel.hidden = true;
+  registerForm.hidden = true;
+  validatedInvite = null;
+  keyInput.value = "";
+  setKeyMessage("");
+  toggleKeyBtn.setAttribute("aria-expanded", "false");
 }
 
-function resetKeyFlow(keepPanelOpen = true) {
-  validatedInviteKey = null;
-  keyValidationForm.hidden = false;
-  registerWithKeyForm.hidden = true;
-  if (!keepPanelOpen) keyAccessPanel.hidden = true;
-}
-
-loginForm.addEventListener("submit", async (e) => {
-  e.preventDefault();
+async function handleLogin(event) {
+  event.preventDefault();
   setError("");
-  setSuccess("");
 
   const username = document.getElementById("username").value.trim();
   const password = document.getElementById("password").value.trim();
@@ -58,100 +52,119 @@ loginForm.addEventListener("submit", async (e) => {
     const result = await response.json();
 
     if (response.ok && result.success) {
-      applyLogin(result);
-    } else {
-      setError(result.message || "Usuário ou senha inválidos!");
+      sessionStorage.setItem("token", result.token);
+      sessionStorage.setItem("loggedUser", result.user);
+      sessionStorage.setItem("isAdmin", result.isAdmin ? "true" : "false");
+      window.location.href = "8617a543f74d88b440f5ba33e1713f063665240f.html";
+      return;
     }
 
+    setError(result.message || "Usuário ou senha inválidos!");
   } catch (err) {
     console.error("Erro no login:", err);
     setError("Erro ao conectar com o servidor.");
   }
-});
+}
 
-toggleKeyAccessBtn.addEventListener("click", () => {
-  const shouldOpen = keyAccessPanel.hidden;
-  keyAccessPanel.hidden = !shouldOpen;
-  toggleKeyAccessBtn.classList.toggle("active", shouldOpen);
-  if (!shouldOpen) {
-    resetKeyFlow(false);
-    setError("");
-    setSuccess("");
-  }
-});
-
-keyValidationForm.addEventListener("submit", async (e) => {
-  e.preventDefault();
+async function handleValidateKey() {
+  const code = keyInput.value.trim();
   setError("");
-  setSuccess("");
+  setKeyMessage("");
 
-  const code = normalizeKey(inviteKeyInput.value);
   if (!code) {
-    setError("Digite a key para validar.");
+    setKeyMessage("Digite uma key primeiro.", "error");
     return;
   }
 
+  validateKeyBtn.disabled = true;
+
   try {
-    const response = await fetch("/api/key/validate", {
+    const response = await fetch("/api/invite/validate", {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ code }),
+      headers: {
+        "Content-Type": "application/json"
+      },
+      body: JSON.stringify({ code })
     });
 
     const result = await response.json();
+
     if (!response.ok || !result.success) {
-      setError(result.message || "Key inválida.");
+      validatedInvite = null;
+      registerForm.hidden = true;
+      setKeyMessage(result.message || "Key inválida.", "error");
       return;
     }
 
-    validatedInviteKey = code;
-    validatedKeyText.textContent = `Key ${result.key?.code || code} validada. Agora crie sua conta.`;
-    keyValidationForm.hidden = true;
-    registerWithKeyForm.hidden = false;
-    setSuccess("Key válida. Cadastro liberado.");
+    validatedInvite = result.invite;
+    registerForm.hidden = false;
+    setKeyMessage("Key válida. Agora você pode criar a conta.", "success");
+    document.getElementById("registerUsername").focus();
   } catch (error) {
     console.error("Erro ao validar key:", error);
-    setError("Erro ao validar key.");
+    validatedInvite = null;
+    registerForm.hidden = true;
+    setKeyMessage("Erro ao validar a key.", "error");
+  } finally {
+    validateKeyBtn.disabled = false;
   }
-});
+}
 
-registerWithKeyForm.addEventListener("submit", async (e) => {
-  e.preventDefault();
+async function handleRegister(event) {
+  event.preventDefault();
   setError("");
-  setSuccess("");
 
-  const username = document.getElementById("registerUsername").value.trim();
-  const displayName = document.getElementById("registerDisplayName").value.trim();
-  const password = document.getElementById("registerPassword").value.trim();
-
-  if (!validatedInviteKey) {
-    setError("Valide a key antes de criar a conta.");
-    resetKeyFlow(true);
+  if (!validatedInvite?.code) {
+    setKeyMessage("Valide uma key antes de criar a conta.", "error");
+    registerForm.hidden = true;
     return;
   }
 
+  const username = document.getElementById("registerUsername").value.trim();
+  const password = document.getElementById("registerPassword").value.trim();
+
   try {
-    const response = await fetch("/api/key/register", {
+    const response = await fetch("/api/invite/register", {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
+      headers: {
+        "Content-Type": "application/json"
+      },
       body: JSON.stringify({
-        code: validatedInviteKey,
+        code: validatedInvite.code,
         username,
-        display_name: displayName,
-        password,
-      }),
+        password
+      })
     });
 
     const result = await response.json();
+
     if (!response.ok || !result.success) {
-      setError(result.message || "Não foi possível criar a conta com essa key.");
+      setKeyMessage(result.message || "Não foi possível criar a conta.", "error");
       return;
     }
 
-    setSuccess("Conta criada com sucesso. Entrando...");
-    applyLogin(result);
+    sessionStorage.setItem("token", result.token);
+    sessionStorage.setItem("loggedUser", result.user);
+    sessionStorage.setItem("isAdmin", result.isAdmin ? "true" : "false");
+    window.location.href = "8617a543f74d88b440f5ba33e1713f063665240f.html";
   } catch (error) {
     console.error("Erro ao criar conta por key:", error);
-    setError("Erro ao criar conta com key.");
+    setKeyMessage("Erro ao criar conta.", "error");
+  }
+}
+
+toggleKeyBtn.addEventListener("click", () => {
+  if (keyPanel.hidden) openKeyPanel();
+  else closeKeyPanel();
+});
+
+validateKeyBtn.addEventListener("click", handleValidateKey);
+keyInput.addEventListener("keydown", (event) => {
+  if (event.key === "Enter") {
+    event.preventDefault();
+    handleValidateKey();
   }
 });
+
+loginForm.addEventListener("submit", handleLogin);
+registerForm.addEventListener("submit", handleRegister);
