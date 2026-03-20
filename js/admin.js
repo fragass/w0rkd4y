@@ -1,32 +1,51 @@
 const ADMIN_USER = sessionStorage.getItem("loggedUser") || "";
-const feedbackToast = document.getElementById("feedbackToast");
 
-function showToast(message, type = "info") {
-  if (!feedbackToast) return;
-  feedbackToast.textContent = message;
-  feedbackToast.className = `feedback-toast ${type} show`;
-  clearTimeout(showToast._timer);
-  showToast._timer = setTimeout(() => {
-    feedbackToast.className = "feedback-toast";
-  }, 2600);
+async function apiFetch(route, options = {}, fallbackPayload = null) {
+  const method = options.method || "GET";
+  const config = {
+    method,
+    headers: {
+      ...(options.headers || {}),
+    },
+  };
+
+  if (method === "GET" && fallbackPayload) {
+    const params = new URLSearchParams();
+    Object.entries(fallbackPayload).forEach(([key, value]) => {
+      if (value !== undefined && value !== null && value !== "") params.set(key, value);
+    });
+    const response = await fetch(`/api/${route}?${params.toString()}`, config);
+    const data = await response.json().catch(() => ({}));
+    if (!response.ok || data.success === false) throw new Error(data.message || data.error || "Erro inesperado");
+    return data;
+  }
+
+  if (options.body) config.body = options.body;
+  else if (fallbackPayload) {
+    config.headers["Content-Type"] = config.headers["Content-Type"] || "application/json";
+    config.body = JSON.stringify(fallbackPayload);
+  }
+
+  const response = await fetch(`/api/${route}`, config);
+  const data = await response.json().catch(() => ({}));
+  if (!response.ok || data.success === false) throw new Error(data.message || data.error || "Erro inesperado");
+  return data;
 }
 
-async function apiFetch(path, options = {}, query = null) {
-  const url = new URL(`/api/${path}`, window.location.origin);
-  if (query && typeof query === "object") {
-    Object.entries(query).forEach(([key, value]) => {
-      if (value !== undefined && value !== null && value !== "") {
-        url.searchParams.set(key, value);
-      }
-    });
-  }
+function showToast(message, type = "info") {
+  const existing = document.querySelector(".feedback-toast");
+  if (existing) existing.remove();
 
-  const response = await fetch(url.toString(), options);
-  const data = await response.json().catch(() => ({}));
-  if (!response.ok || data?.success === false) {
-    throw new Error(data?.message || data?.error || "Falha na requisição");
-  }
-  return data;
+  const toast = document.createElement("div");
+  toast.className = `feedback-toast ${type}`;
+  toast.textContent = message;
+  document.body.appendChild(toast);
+
+  requestAnimationFrame(() => toast.classList.add("show"));
+  setTimeout(() => {
+    toast.classList.remove("show");
+    setTimeout(() => toast.remove(), 220);
+  }, 2600);
 }
 
 function formatDate(value) {
@@ -34,15 +53,6 @@ function formatDate(value) {
   const date = new Date(value);
   if (Number.isNaN(date.getTime())) return "--";
   return date.toLocaleString("pt-BR");
-}
-
-function escapeHtml(value) {
-  return String(value || "")
-    .replace(/&/g, "&amp;")
-    .replace(/</g, "&lt;")
-    .replace(/>/g, "&gt;")
-    .replace(/"/g, "&quot;")
-    .replace(/'/g, "&#039;");
 }
 
 function initialsAvatar(name = "?") {
@@ -55,11 +65,19 @@ function initialsAvatar(name = "?") {
   `)}`;
 }
 
-function getKeyStatusPill(invite) {
-  if (invite.revoked) return '<span class="pill revoked">Revogada</span>';
-  if (invite.used) return '<span class="pill used">Usada</span>';
-  if (invite.expired) return '<span class="pill expired">Expirada</span>';
-  return '<span class="pill active-key">Ativa</span>';
+function escapeHtml(value) {
+  return String(value || "")
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;")
+    .replace(/'/g, "&#039;");
+}
+
+function keyStatusBadge(key) {
+  if (key.revoked) return '<span class="pill revoked">Revogada</span>';
+  if (key.used) return '<span class="pill used">Usada</span>';
+  return '<span class="pill active">Ativa</span>';
 }
 
 async function loadStats() {
@@ -72,8 +90,8 @@ async function loadStats() {
   document.getElementById("statPrivate").textContent = stats.private_messages ?? 0;
   document.getElementById("statRooms").textContent = stats.private_rooms ?? 0;
   document.getElementById("statImages").textContent = stats.uploaded_images ?? 0;
-  document.getElementById("statKeysActive").textContent = stats.invite_keys_active ?? 0;
-  document.getElementById("statKeysUsed").textContent = stats.invite_keys_used ?? 0;
+  document.getElementById("statKeysActive").textContent = stats.keys_active ?? 0;
+  document.getElementById("statKeysUsed").textContent = stats.keys_used ?? 0;
 
   const status = document.getElementById("systemStatusList");
   status.innerHTML = "";
@@ -82,7 +100,8 @@ async function loadStats() {
     ["Usuários online agora", stats.online_now ?? 0],
     ["Fila pública", stats.public_messages ?? 0],
     ["Fila privada", stats.private_messages ?? 0],
-    ["Keys ativas", stats.invite_keys_active ?? 0],
+    ["Salas privadas", stats.private_rooms ?? 0],
+    ["Keys ativas", stats.keys_active ?? 0],
   ];
   rows.forEach(([label, value]) => {
     const div = document.createElement("div");
@@ -110,8 +129,8 @@ async function loadUsers() {
         <div class="user-name">
           <img class="user-avatar" src="${user.avatar_url || initialsAvatar(user.display_name || user.username)}" alt="${user.username}">
           <div class="user-meta">
-            <strong>${escapeHtml(user.display_name || user.username)}</strong>
-            <small>@${escapeHtml(user.username)}</small>
+            <strong>${user.display_name || user.username}</strong>
+            <small>@${user.username}</small>
           </div>
         </div>
       </td>
@@ -120,8 +139,8 @@ async function loadUsers() {
       <td>${formatDate(user.created_at)}</td>
       <td>
         <div class="row-actions">
-          <button class="secondary-btn" data-role-user="${escapeHtml(user.username)}" data-next-admin="${user.is_admin ? "0" : "1"}">${user.is_admin ? "Remover admin" : "Tornar admin"}</button>
-          <button class="danger-btn" data-remove-user="${escapeHtml(user.username)}">Remover</button>
+          <button class="secondary-btn" data-role-user="${user.username}" data-next-admin="${user.is_admin ? "0" : "1"}">${user.is_admin ? "Remover admin" : "Tornar admin"}</button>
+          <button class="danger-btn" data-remove-user="${user.username}">Remover</button>
         </div>
       </td>
     `;
@@ -137,30 +156,26 @@ async function loadKeys() {
   tbody.innerHTML = "";
 
   if (!data.keys?.length) {
-    tbody.innerHTML = `<tr><td colspan="6">Nenhuma key encontrada.</td></tr>`;
+    tbody.innerHTML = `<tr><td colspan="5">Nenhuma key encontrada.</td></tr>`;
     return;
   }
 
-  data.keys.forEach((invite) => {
+  data.keys.forEach((key) => {
     const tr = document.createElement("tr");
-    const usage = invite.used
-      ? `por <strong>${escapeHtml(invite.used_by || "--")}</strong><br><small>${formatDate(invite.used_at)}</small>`
-      : invite.revoked
-        ? `revogada<br><small>${formatDate(invite.revoked_at)}</small>`
-        : invite.expires_at
-          ? `expira em<br><small>${formatDate(invite.expires_at)}</small>`
-          : `<small>sem uso ainda</small>`;
-
     tr.innerHTML = `
-      <td><code>${escapeHtml(invite.code)}</code></td>
-      <td>${getKeyStatusPill(invite)}</td>
-      <td>${escapeHtml(invite.label || "--")}</td>
-      <td>${usage}</td>
-      <td>${formatDate(invite.created_at)}</td>
+      <td>
+        <div class="key-code-block">
+          <strong>${escapeHtml(key.code)}</strong>
+          <small>${key.used_by ? `usada por @${escapeHtml(key.used_by)}` : (key.created_by ? `criada por @${escapeHtml(key.created_by)}` : "sem histórico")}</small>
+        </div>
+      </td>
+      <td>${keyStatusBadge(key)}</td>
+      <td>${formatDate(key.created_at)}</td>
+      <td>${formatDate(key.used_at)}</td>
       <td>
         <div class="row-actions">
-          <button class="secondary-btn" data-copy-key="${escapeHtml(invite.code)}">Copiar</button>
-          ${!invite.used && !invite.revoked ? `<button class="danger-btn" data-revoke-key-id="${invite.id}">Revogar</button>` : ""}
+          <button class="secondary-btn" data-copy-key="${escapeHtml(key.code)}">Copiar</button>
+          ${!key.used && !key.revoked ? `<button class="danger-btn" data-revoke-key="${escapeHtml(key.code)}">Revogar</button>` : ""}
         </div>
       </td>
     `;
@@ -186,7 +201,7 @@ async function loadLogs() {
     div.innerHTML = `
       <div class="log-top">
         <div>
-          <div class="log-type">${escapeHtml(log.type)}</div>
+          <div class="log-type">${log.type}</div>
           <div class="log-message">${escapeHtml(log.message || "Sem conteúdo")}</div>
         </div>
         <div class="log-meta">${formatDate(log.created_at)}</div>
@@ -199,7 +214,8 @@ async function loadLogs() {
 
 async function createUser(event) {
   event.preventDefault();
-  const formData = new FormData(event.currentTarget);
+  const form = event.currentTarget;
+  const formData = new FormData(form);
 
   await apiFetch("admin/users/create", {
     method: "POST",
@@ -213,44 +229,44 @@ async function createUser(event) {
     }),
   });
 
-  event.currentTarget.reset();
+  form.reset();
   showToast("Usuário criado com sucesso.", "success");
-  await refreshEverything({ logs: true, keys: false });
+  await refreshEverything({ logs: true });
 }
 
 async function createKey(event) {
   event.preventDefault();
-  const formData = new FormData(event.currentTarget);
+  const form = event.currentTarget;
+  const formData = new FormData(form);
   const data = await apiFetch("admin/keys/create", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({
       username: ADMIN_USER,
-      label: String(formData.get("label") || "").trim(),
-      expires_in_days: String(formData.get("expires_in_days") || "").trim(),
+      prefix: String(formData.get("prefix") || "").trim(),
     }),
   });
 
-  event.currentTarget.reset();
   document.getElementById("generatedKeyValue").textContent = data.key?.code || "--";
-  document.getElementById("generatedKeyBox").hidden = false;
-  showToast("Key criada com sucesso.", "success");
+  document.getElementById("keyCreateResult").hidden = false;
+  form.reset();
+  showToast("Key gerada com sucesso.", "success");
   await refreshEverything({ logs: true });
 }
 
-async function copyText(text) {
-  await navigator.clipboard.writeText(String(text || ""));
+async function copyText(value) {
+  await navigator.clipboard.writeText(value);
   showToast("Copiado.", "success");
 }
 
-async function revokeKey(keyId) {
-  const ok = window.confirm("Revogar essa key? Quem ainda não usou perde o acesso por ela.");
+async function revokeKey(code) {
+  const ok = window.confirm(`Revogar a key ${code}?`);
   if (!ok) return;
 
   await apiFetch("admin/keys/revoke", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ username: ADMIN_USER, key_id: keyId }),
+    body: JSON.stringify({ username: ADMIN_USER, code }),
   });
 
   showToast("Key revogada.", "success");
@@ -261,7 +277,11 @@ async function updateUserRole(targetUsername, isAdmin) {
   await apiFetch("admin/users/role", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ username: ADMIN_USER, target_username: targetUsername, is_admin: isAdmin }),
+    body: JSON.stringify({
+      username: ADMIN_USER,
+      target_username: targetUsername,
+      is_admin: isAdmin,
+    }),
   });
 
   if (targetUsername === ADMIN_USER) {
@@ -269,7 +289,7 @@ async function updateUserRole(targetUsername, isAdmin) {
   }
 
   showToast("Permissão atualizada.", "success");
-  await refreshEverything({ logs: true, keys: false });
+  await refreshEverything({ logs: true });
 }
 
 async function removeUser(targetUsername) {
@@ -305,16 +325,15 @@ async function runClear(scope) {
   });
 
   showToast(data.message || "Ação concluída.", "success");
-  await refreshEverything({ logs: true, keys: false });
+  await refreshEverything({ logs: true });
 }
 
 async function refreshEverything(options = {}) {
   const wantsLogs = options.logs !== false;
-  const wantsKeys = options.keys !== false;
   await Promise.all([
     loadStats(),
     loadUsers(),
-    wantsKeys ? loadKeys() : Promise.resolve(),
+    loadKeys(),
     wantsLogs ? loadLogs() : Promise.resolve(),
   ]);
 }
@@ -359,22 +378,31 @@ document.addEventListener("click", async (event) => {
     return;
   }
 
-  const copyKeyBtn = event.target.closest("[data-copy-key]");
-  if (copyKeyBtn) {
+  const revokeBtn = event.target.closest("[data-revoke-key]");
+  if (revokeBtn) {
     try {
-      await copyText(copyKeyBtn.dataset.copyKey);
-    } catch {
-      showToast("Não consegui copiar a key.", "error");
+      await revokeKey(revokeBtn.dataset.revokeKey);
+    } catch (error) {
+      showToast(error.message, "error");
     }
     return;
   }
 
-  const revokeKeyBtn = event.target.closest("[data-revoke-key-id]");
-  if (revokeKeyBtn) {
+  const copyBtn = event.target.closest("[data-copy-key]");
+  if (copyBtn) {
     try {
-      await revokeKey(revokeKeyBtn.dataset.revokeKeyId);
+      await copyText(copyBtn.dataset.copyKey);
     } catch (error) {
-      showToast(error.message, "error");
+      showToast("Não foi possível copiar.", "error");
+    }
+    return;
+  }
+
+  if (event.target.id === "copyGeneratedKeyBtn") {
+    try {
+      await copyText(document.getElementById("generatedKeyValue").textContent.trim());
+    } catch (error) {
+      showToast("Não foi possível copiar.", "error");
     }
   }
 });
@@ -387,9 +415,8 @@ document.addEventListener("DOMContentLoaded", async () => {
   document.getElementById("reloadKeysBtn").addEventListener("click", () => loadKeys().catch((error) => showToast(error.message, "error")));
   document.getElementById("reloadLogsBtn").addEventListener("click", () => loadLogs().catch((error) => showToast(error.message, "error")));
   document.getElementById("refreshAllBtn").addEventListener("click", () => refreshEverything({ logs: true }).then(() => showToast("Painel atualizado.", "success")).catch((error) => showToast(error.message, "error")));
-  document.getElementById("copyGeneratedKeyBtn").addEventListener("click", () => copyText(document.getElementById("generatedKeyValue").textContent).catch(() => showToast("Não consegui copiar a key.", "error")));
-  document.getElementById("userSearchInput").addEventListener("input", debounce(() => loadUsers().catch((error) => showToast(error.message, "error")), 180));
-  document.getElementById("keySearchInput").addEventListener("input", debounce(() => loadKeys().catch((error) => showToast(error.message, "error")), 180));
+  document.getElementById("userSearchInput").addEventListener("input", () => loadUsers().catch((error) => showToast(error.message, "error")));
+  document.getElementById("keySearchInput").addEventListener("input", debounce(() => loadKeys().catch((error) => showToast(error.message, "error")), 260));
   document.getElementById("keyStatusSelect").addEventListener("change", () => loadKeys().catch((error) => showToast(error.message, "error")));
   document.getElementById("logSearchInput").addEventListener("input", debounce(() => loadLogs().catch((error) => showToast(error.message, "error")), 260));
   document.getElementById("logTypeSelect").addEventListener("change", () => loadLogs().catch((error) => showToast(error.message, "error")));
