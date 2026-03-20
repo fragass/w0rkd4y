@@ -13,7 +13,6 @@ const PRIVATE_MESSAGES_TABLE = "private_messages";
 const PRIVATE_CHANNELS_TABLE = "private_channels";
 const CHAT_IMAGES_BUCKET = "chat-images";
 const PROFILE_AVATARS_BUCKET = "profile-avatars";
-const INVITE_KEYS_TABLE = "invite_keys";
 
 const supabaseAnon = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 const supabaseService = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY);
@@ -62,66 +61,6 @@ function isValidName(name) {
 
 function isValidRoom(room) {
   return typeof room === "string" && /^[A-Za-z0-9_-]{3,32}$/.test(room);
-}
-
-function normalizeInviteKey(value) {
-  return String(value || "").trim().toUpperCase();
-}
-
-function generateInviteKey() {
-  return `WRK-${crypto.randomBytes(3).toString("hex").toUpperCase()}-${crypto.randomBytes(2).toString("hex").toUpperCase()}`;
-}
-
-function buildSessionPayload(user) {
-  return {
-    success: true,
-    token: crypto.randomBytes(32).toString("hex"),
-    user: user.username,
-    isAdmin: !!user.is_admin,
-  };
-}
-
-function isInviteExpired(invite) {
-  if (!invite?.expires_at) return false;
-  const expires = new Date(invite.expires_at).getTime();
-  return Number.isFinite(expires) && expires <= Date.now();
-}
-
-async function findInviteKeyByCode(code) {
-  const normalized = normalizeInviteKey(code);
-  if (!normalized) return null;
-
-  const { data, error } = await supabaseService
-    .from(INVITE_KEYS_TABLE)
-    .select("id, code, label, used, revoked, created_at, expires_at, used_at, used_by, revoked_at")
-    .eq("code", normalized)
-    .maybeSingle();
-
-  if (error) throw new Error(error.message);
-  return data || null;
-}
-
-function validateInviteAvailability(invite) {
-  if (!invite) {
-    const err = new Error("Key inválida");
-    err.statusCode = 404;
-    throw err;
-  }
-  if (invite.revoked) {
-    const err = new Error("Essa key foi revogada");
-    err.statusCode = 400;
-    throw err;
-  }
-  if (invite.used) {
-    const err = new Error("Essa key já foi usada");
-    err.statusCode = 400;
-    throw err;
-  }
-  if (isInviteExpired(invite)) {
-    const err = new Error("Essa key expirou");
-    err.statusCode = 400;
-    throw err;
-  }
 }
 
 function extractStoragePathFromPublicUrl(publicUrl, bucketName) {
@@ -386,7 +325,14 @@ async function handleLogin(req, res) {
       return sendJson(res, 401, { success: false });
     }
 
-    return sendJson(res, 200, buildSessionPayload(data));
+    const token = crypto.randomBytes(32).toString("hex");
+
+    return sendJson(res, 200, {
+      success: true,
+      token,
+      user: data.username,
+      isAdmin: !!data.is_admin,
+    });
   } catch {
     return sendJson(res, 500, { success: false, message: "Erro interno" });
   }
@@ -1042,7 +988,6 @@ async function handleAdminStats(req, res) {
       onlineRes,
       recentPublicRes,
       recentPrivateRes,
-      inviteKeysRes,
     ] = await Promise.all([
       supabaseService.from("users").select("username, is_admin"),
       supabaseService.from(PUBLIC_MESSAGES_TABLE).select("id, image_url"),
@@ -1051,10 +996,9 @@ async function handleAdminStats(req, res) {
       supabaseService.from("online_users").select("name, last_seen"),
       supabaseService.from(PUBLIC_MESSAGES_TABLE).select("id").order("created_at", { ascending: false }).limit(1),
       supabaseService.from(PRIVATE_MESSAGES_TABLE).select("id").order("created_at", { ascending: false }).limit(1),
-      supabaseService.from(INVITE_KEYS_TABLE).select("id, used, revoked, expires_at"),
     ]);
 
-    const responses = [usersRes, publicRes, privateRes, channelsRes, onlineRes, recentPublicRes, recentPrivateRes, inviteKeysRes];
+    const responses = [usersRes, publicRes, privateRes, channelsRes, onlineRes, recentPublicRes, recentPrivateRes];
     const failed = responses.find(item => item.error);
     if (failed?.error) throw new Error(failed.error.message);
 
@@ -1067,7 +1011,6 @@ async function handleAdminStats(req, res) {
     const publicMessages = publicRes.data || [];
     const privateMessages = privateRes.data || [];
     const channels = channelsRes.data || [];
-    const inviteKeys = inviteKeysRes.data || [];
 
     return sendJson(res, 200, {
       success: true,
@@ -1079,8 +1022,6 @@ async function handleAdminStats(req, res) {
         private_messages: privateMessages.length,
         private_rooms: channels.length,
         uploaded_images: publicMessages.filter(row => !!row.image_url).length + privateMessages.filter(row => !!row.image_url).length,
-        invite_keys_active: inviteKeys.filter(row => !row.used && !row.revoked && !isInviteExpired(row)).length,
-        invite_keys_used: inviteKeys.filter(row => !!row.used).length,
         newest_public_message: recentPublicRes.data?.[0]?.id || null,
         newest_private_message: recentPrivateRes.data?.[0]?.id || null,
       },
@@ -1370,283 +1311,6 @@ async function handleAdminUserRemove(req, res) {
     });
   }
 }
-
-async function handleKeyValidate(req, res) {
-  if (req.method !== "POST") {
-    return sendJson(res, 405, { success: false, message: "Método não permitido" });
-  }
-
-  try {
-    const body = await readJsonBody(req);
-    const code = normalizeInviteKey(body?.code);
-    if (!code) {
-      return sendJson(res, 400, { success: false, message: "Key obrigatória" });
-    }
-
-    const invite = await findInviteKeyByCode(code);
-    validateInviteAvailability(invite);
-
-    return sendJson(res, 200, {
-      success: true,
-      key: {
-        code: invite.code,
-        label: invite.label || null,
-        expires_at: invite.expires_at || null,
-      },
-    });
-  } catch (error) {
-    return sendJson(res, error.statusCode || 500, {
-      success: false,
-      message: error.message || "Erro ao validar key",
-    });
-  }
-}
-
-async function handleKeyRegister(req, res) {
-  if (req.method !== "POST") {
-    return sendJson(res, 405, { success: false, message: "Método não permitido" });
-  }
-
-  try {
-    const body = await readJsonBody(req);
-    const code = normalizeInviteKey(body?.code);
-    const newUsername = String(body?.username || "").trim();
-    const password = String(body?.password || "").trim();
-    const displayName = String(body?.display_name || newUsername).trim();
-
-    if (!code) {
-      return sendJson(res, 400, { success: false, message: "Key obrigatória" });
-    }
-
-    if (!isValidName(newUsername)) {
-      return sendJson(res, 400, {
-        success: false,
-        message: "Username inválido. Use de 2 a 24 caracteres: letras, números ou _",
-      });
-    }
-
-    if (password.length < 3 || password.length > 80) {
-      return sendJson(res, 400, {
-        success: false,
-        message: "A senha precisa ter entre 3 e 80 caracteres",
-      });
-    }
-
-    const invite = await findInviteKeyByCode(code);
-    validateInviteAvailability(invite);
-
-    const { data: existingUser, error: existingError } = await supabaseService
-      .from("users")
-      .select("username")
-      .eq("username", newUsername)
-      .maybeSingle();
-
-    if (existingError) throw new Error(existingError.message);
-    if (existingUser) {
-      return sendJson(res, 409, { success: false, message: "Esse username já existe" });
-    }
-
-    const safeDisplayName = displayName.slice(0, 40) || newUsername;
-
-    const { error: insertUserError } = await supabaseService
-      .from("users")
-      .insert([{ username: newUsername, password, is_admin: false }]);
-
-    if (insertUserError) throw new Error(insertUserError.message);
-
-    const { error: insertProfileError } = await supabaseService
-      .from("user_profiles")
-      .upsert([{ username: newUsername, display_name: safeDisplayName, avatar_url: null }], { onConflict: "username" });
-
-    if (insertProfileError) throw new Error(insertProfileError.message);
-
-    const { data: updatedRows, error: consumeError } = await supabaseService
-      .from(INVITE_KEYS_TABLE)
-      .update({ used: true, used_at: new Date().toISOString(), used_by: newUsername })
-      .eq("id", invite.id)
-      .eq("used", false)
-      .eq("revoked", false)
-      .select("id");
-
-    if (consumeError) throw new Error(consumeError.message);
-    if (!updatedRows?.length) {
-      await supabaseService.from("user_profiles").delete().eq("username", newUsername);
-      await supabaseService.from("users").delete().eq("username", newUsername);
-      return sendJson(res, 409, { success: false, message: "Essa key acabou de ser usada por outra pessoa" });
-    }
-
-    await appendAdminLog(newUsername, "register_with_key", {
-      target: newUsername,
-      key_code: invite.code,
-      key_label: invite.label || null,
-    });
-
-    return sendJson(res, 200, buildSessionPayload({ username: newUsername, is_admin: false }));
-  } catch (error) {
-    return sendJson(res, error.statusCode || 500, {
-      success: false,
-      message: error.message || "Erro ao criar conta com key",
-    });
-  }
-}
-
-async function handleAdminKeys(req, res) {
-  if (req.method !== "GET") {
-    return sendJson(res, 405, { success: false, message: "Método não permitido" });
-  }
-
-  try {
-    const username = String(req.query?.username || "").trim();
-    const search = normalizeSearchTerm(req.query?.search);
-    const status = String(req.query?.status || "all").trim().toLowerCase();
-    await requireAdminAccess(username);
-
-    const { data, error } = await supabaseService
-      .from(INVITE_KEYS_TABLE)
-      .select("id, code, label, created_at, created_by, expires_at, used, used_at, used_by, revoked, revoked_at")
-      .order("created_at", { ascending: false })
-      .limit(200);
-
-    if (error) throw new Error(error.message);
-
-    const rows = (data || []).map((row) => ({
-      ...row,
-      expired: isInviteExpired(row),
-    })).filter((row) => {
-      if (search) {
-        const haystack = [row.code, row.label, row.used_by, row.created_by].join(" ").toLowerCase();
-        if (!haystack.includes(search)) return false;
-      }
-
-      if (status === "active") return !row.used && !row.revoked && !row.expired;
-      if (status === "used") return !!row.used;
-      if (status === "revoked") return !!row.revoked;
-      if (status === "expired") return row.expired && !row.used && !row.revoked;
-      return true;
-    });
-
-    return sendJson(res, 200, { success: true, keys: rows });
-  } catch (error) {
-    return sendJson(res, error.statusCode || 500, {
-      success: false,
-      message: error.message || "Erro ao listar keys",
-    });
-  }
-}
-
-async function handleAdminKeysCreate(req, res) {
-  if (req.method !== "POST") {
-    return sendJson(res, 405, { success: false, message: "Método não permitido" });
-  }
-
-  try {
-    const body = await readJsonBody(req);
-    const actor = String(body?.username || "").trim();
-    await requireAdminAccess(actor);
-
-    const label = String(body?.label || "").trim().slice(0, 80);
-    const expiresInDaysRaw = String(body?.expires_in_days || "").trim();
-    let expiresAt = null;
-    if (expiresInDaysRaw) {
-      const days = Number(expiresInDaysRaw);
-      if (!Number.isFinite(days) || days < 0 || days > 365) {
-        return sendJson(res, 400, { success: false, message: "Expiração inválida. Use 0 a 365 dias." });
-      }
-      if (days > 0) {
-        expiresAt = new Date(Date.now() + days * 86400000).toISOString();
-      }
-    }
-
-    let code = null;
-    for (let attempt = 0; attempt < 6; attempt += 1) {
-      const candidate = generateInviteKey();
-      const { data: existing, error: findError } = await supabaseService
-        .from(INVITE_KEYS_TABLE)
-        .select("id")
-        .eq("code", candidate)
-        .maybeSingle();
-      if (findError) throw new Error(findError.message);
-      if (!existing) {
-        code = candidate;
-        break;
-      }
-    }
-
-    if (!code) throw new Error("Não consegui gerar uma key única agora");
-
-    const { data: rows, error: insertError } = await supabaseService
-      .from(INVITE_KEYS_TABLE)
-      .insert([{ code, label: label || null, created_by: actor, expires_at: expiresAt }])
-      .select("id, code, label, created_at, created_by, expires_at, used, used_at, used_by, revoked, revoked_at")
-      .limit(1);
-
-    if (insertError) throw new Error(insertError.message);
-
-    await appendAdminLog(actor, "invite_key_create", {
-      target: code,
-      key_label: label || null,
-      expires_at: expiresAt,
-    });
-
-    return sendJson(res, 200, { success: true, key: rows?.[0] || null });
-  } catch (error) {
-    return sendJson(res, error.statusCode || 500, {
-      success: false,
-      message: error.message || "Erro ao criar key",
-    });
-  }
-}
-
-async function handleAdminKeysRevoke(req, res) {
-  if (req.method !== "POST") {
-    return sendJson(res, 405, { success: false, message: "Método não permitido" });
-  }
-
-  try {
-    const body = await readJsonBody(req);
-    const actor = String(body?.username || "").trim();
-    await requireAdminAccess(actor);
-
-    const keyId = String(body?.key_id || "").trim();
-    if (!keyId) {
-      return sendJson(res, 400, { success: false, message: "Key obrigatória" });
-    }
-
-    const { data: existing, error: existingError } = await supabaseService
-      .from(INVITE_KEYS_TABLE)
-      .select("id, code, used, revoked")
-      .eq("id", keyId)
-      .maybeSingle();
-
-    if (existingError) throw new Error(existingError.message);
-    if (!existing) {
-      return sendJson(res, 404, { success: false, message: "Key não encontrada" });
-    }
-    if (existing.used) {
-      return sendJson(res, 400, { success: false, message: "Essa key já foi usada" });
-    }
-    if (existing.revoked) {
-      return sendJson(res, 400, { success: false, message: "Essa key já está revogada" });
-    }
-
-    const { error: revokeError } = await supabaseService
-      .from(INVITE_KEYS_TABLE)
-      .update({ revoked: true, revoked_at: new Date().toISOString() })
-      .eq("id", keyId);
-
-    if (revokeError) throw new Error(revokeError.message);
-
-    await appendAdminLog(actor, "invite_key_revoke", { target: existing.code });
-
-    return sendJson(res, 200, { success: true, message: "Key revogada com sucesso" });
-  } catch (error) {
-    return sendJson(res, error.statusCode || 500, {
-      success: false,
-      message: error.message || "Erro ao revogar key",
-    });
-  }
-}
-
 
 async function handleAdminLogs(req, res) {
   if (req.method !== "GET") {
@@ -2231,8 +1895,6 @@ async function handler(req, res) {
 
   if (routeKey === "realtime/config") return handleRealtimeConfig(req, res);
   if (routeKey === "login") return handleLogin(req, res);
-  if (routeKey === "key/validate") return handleKeyValidate(req, res);
-  if (routeKey === "key/register") return handleKeyRegister(req, res);
   if (routeKey === "messages") return handleMessages(req, res);
   if (routeKey === "online") return handleOnline(req, res);
   if (routeKey === "profile") return handleProfile(req, res);
@@ -2241,9 +1903,6 @@ async function handler(req, res) {
   if (routeKey === "users/list") return handleUsersList(req, res);
   if (routeKey === "admin/stats") return handleAdminStats(req, res);
   if (routeKey === "admin/users") return handleAdminUsers(req, res);
-  if (routeKey === "admin/keys") return handleAdminKeys(req, res);
-  if (routeKey === "admin/keys/create") return handleAdminKeysCreate(req, res);
-  if (routeKey === "admin/keys/revoke") return handleAdminKeysRevoke(req, res);
   if (routeKey === "admin/users/create") return handleAdminUserCreate(req, res);
   if (routeKey === "admin/users/role") return handleAdminUserRole(req, res);
   if (routeKey === "admin/users/remove") return handleAdminUserRemove(req, res);
