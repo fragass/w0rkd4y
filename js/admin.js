@@ -1,50 +1,38 @@
-const ADMIN_USER = sessionStorage.getItem("loggedUser") || "";
 
-async function apiFetch(route, options = {}, fallbackPayload = null) {
-  const method = options.method || "GET";
-  const config = {
-    method,
-    headers: {
-      ...(options.headers || {}),
-    },
-  };
+const ADMIN_USER = sessionStorage.getItem("loggedUser");
+const API_BASE = "/api/[...route]";
 
-  if (method === "GET" && fallbackPayload) {
-    const params = new URLSearchParams();
-    Object.entries(fallbackPayload).forEach(([key, value]) => {
-      if (value !== undefined && value !== null && value !== "") params.set(key, value);
-    });
-    const response = await fetch(`/api/${route}?${params.toString()}`, config);
-    const data = await response.json().catch(() => ({}));
-    if (!response.ok || data.success === false) throw new Error(data.message || data.error || "Erro inesperado");
-    return data;
-  }
+function buildApiUrl(route, query = {}) {
+  const cleanRoute = String(route || "").replace(/^\/+|\/+$/g, "");
+  const params = new URLSearchParams();
+  params.set("route", cleanRoute);
 
-  if (options.body) config.body = options.body;
-  else if (fallbackPayload) {
-    config.headers["Content-Type"] = config.headers["Content-Type"] || "application/json";
-    config.body = JSON.stringify(fallbackPayload);
-  }
+  Object.entries(query || {}).forEach(([key, value]) => {
+    if (value !== undefined && value !== null && value !== "") {
+      params.set(key, value);
+    }
+  });
 
-  const response = await fetch(`/api/${route}`, config);
+  return `${API_BASE}?${params.toString()}`;
+}
+
+async function apiFetch(route, options = {}, query = {}) {
+  const response = await fetch(buildApiUrl(route, query), options);
   const data = await response.json().catch(() => ({}));
-  if (!response.ok || data.success === false) throw new Error(data.message || data.error || "Erro inesperado");
+  if (!response.ok || data?.success === false) {
+    throw new Error(data?.message || data?.error || "Falha na requisição");
+  }
   return data;
 }
 
 function showToast(message, type = "info") {
-  const existing = document.querySelector(".feedback-toast");
-  if (existing) existing.remove();
-
-  const toast = document.createElement("div");
-  toast.className = `feedback-toast ${type}`;
+  const toast = document.getElementById("feedbackToast");
+  if (!toast) return;
   toast.textContent = message;
-  document.body.appendChild(toast);
-
-  requestAnimationFrame(() => toast.classList.add("show"));
-  setTimeout(() => {
-    toast.classList.remove("show");
-    setTimeout(() => toast.remove(), 220);
+  toast.className = `feedback-toast show ${type}`;
+  clearTimeout(showToast.timer);
+  showToast.timer = setTimeout(() => {
+    toast.className = "feedback-toast";
   }, 2600);
 }
 
@@ -65,21 +53,6 @@ function initialsAvatar(name = "?") {
   `)}`;
 }
 
-function escapeHtml(value) {
-  return String(value || "")
-    .replace(/&/g, "&amp;")
-    .replace(/</g, "&lt;")
-    .replace(/>/g, "&gt;")
-    .replace(/"/g, "&quot;")
-    .replace(/'/g, "&#039;");
-}
-
-function keyStatusBadge(key) {
-  if (key.revoked) return '<span class="pill revoked">Revogada</span>';
-  if (key.used) return '<span class="pill used">Usada</span>';
-  return '<span class="pill active">Ativa</span>';
-}
-
 async function loadStats() {
   const data = await apiFetch("admin/stats", {}, { username: ADMIN_USER });
   const stats = data.stats || {};
@@ -90,8 +63,6 @@ async function loadStats() {
   document.getElementById("statPrivate").textContent = stats.private_messages ?? 0;
   document.getElementById("statRooms").textContent = stats.private_rooms ?? 0;
   document.getElementById("statImages").textContent = stats.uploaded_images ?? 0;
-  document.getElementById("statKeysActive").textContent = stats.keys_active ?? 0;
-  document.getElementById("statKeysUsed").textContent = stats.keys_used ?? 0;
 
   const status = document.getElementById("systemStatusList");
   status.innerHTML = "";
@@ -101,7 +72,6 @@ async function loadStats() {
     ["Fila pública", stats.public_messages ?? 0],
     ["Fila privada", stats.private_messages ?? 0],
     ["Salas privadas", stats.private_rooms ?? 0],
-    ["Keys ativas", stats.keys_active ?? 0],
   ];
   rows.forEach(([label, value]) => {
     const div = document.createElement("div");
@@ -148,41 +118,6 @@ async function loadUsers() {
   });
 }
 
-async function loadKeys() {
-  const search = document.getElementById("keySearchInput").value.trim();
-  const status = document.getElementById("keyStatusSelect").value;
-  const data = await apiFetch("admin/keys", {}, { username: ADMIN_USER, search, status });
-  const tbody = document.getElementById("keysTableBody");
-  tbody.innerHTML = "";
-
-  if (!data.keys?.length) {
-    tbody.innerHTML = `<tr><td colspan="5">Nenhuma key encontrada.</td></tr>`;
-    return;
-  }
-
-  data.keys.forEach((key) => {
-    const tr = document.createElement("tr");
-    tr.innerHTML = `
-      <td>
-        <div class="key-code-block">
-          <strong>${escapeHtml(key.code)}</strong>
-          <small>${key.used_by ? `usada por @${escapeHtml(key.used_by)}` : (key.created_by ? `criada por @${escapeHtml(key.created_by)}` : "sem histórico")}</small>
-        </div>
-      </td>
-      <td>${keyStatusBadge(key)}</td>
-      <td>${formatDate(key.created_at)}</td>
-      <td>${formatDate(key.used_at)}</td>
-      <td>
-        <div class="row-actions">
-          <button class="secondary-btn" data-copy-key="${escapeHtml(key.code)}">Copiar</button>
-          ${!key.used && !key.revoked ? `<button class="danger-btn" data-revoke-key="${escapeHtml(key.code)}">Revogar</button>` : ""}
-        </div>
-      </td>
-    `;
-    tbody.appendChild(tr);
-  });
-}
-
 async function loadLogs() {
   const type = document.getElementById("logTypeSelect").value;
   const search = document.getElementById("logSearchInput").value.trim();
@@ -212,6 +147,15 @@ async function loadLogs() {
   });
 }
 
+function escapeHtml(value) {
+  return String(value || "")
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;")
+    .replace(/'/g, "&#039;");
+}
+
 async function createUser(event) {
   event.preventDefault();
   const form = event.currentTarget;
@@ -231,45 +175,6 @@ async function createUser(event) {
 
   form.reset();
   showToast("Usuário criado com sucesso.", "success");
-  await refreshEverything({ logs: true });
-}
-
-async function createKey(event) {
-  event.preventDefault();
-  const form = event.currentTarget;
-  const formData = new FormData(form);
-  const data = await apiFetch("admin/keys/create", {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({
-      username: ADMIN_USER,
-      prefix: String(formData.get("prefix") || "").trim(),
-    }),
-  });
-
-  document.getElementById("generatedKeyValue").textContent = data.key?.code || "--";
-  document.getElementById("keyCreateResult").hidden = false;
-  form.reset();
-  showToast("Key gerada com sucesso.", "success");
-  await refreshEverything({ logs: true });
-}
-
-async function copyText(value) {
-  await navigator.clipboard.writeText(value);
-  showToast("Copiado.", "success");
-}
-
-async function revokeKey(code) {
-  const ok = window.confirm(`Revogar a key ${code}?`);
-  if (!ok) return;
-
-  await apiFetch("admin/keys/revoke", {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ username: ADMIN_USER, code }),
-  });
-
-  showToast("Key revogada.", "success");
   await refreshEverything({ logs: true });
 }
 
@@ -299,7 +204,10 @@ async function removeUser(targetUsername) {
   await apiFetch("admin/users/remove", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ username: ADMIN_USER, target_username: targetUsername }),
+    body: JSON.stringify({
+      username: ADMIN_USER,
+      target_username: targetUsername,
+    }),
   });
 
   showToast(`Usuário ${targetUsername} removido.`, "success");
@@ -330,12 +238,7 @@ async function runClear(scope) {
 
 async function refreshEverything(options = {}) {
   const wantsLogs = options.logs !== false;
-  await Promise.all([
-    loadStats(),
-    loadUsers(),
-    loadKeys(),
-    wantsLogs ? loadLogs() : Promise.resolve(),
-  ]);
+  await Promise.all([loadStats(), loadUsers(), wantsLogs ? loadLogs() : Promise.resolve()]);
 }
 
 document.addEventListener("click", async (event) => {
@@ -375,49 +278,16 @@ document.addEventListener("click", async (event) => {
     } catch (error) {
       showToast(error.message, "error");
     }
-    return;
-  }
-
-  const revokeBtn = event.target.closest("[data-revoke-key]");
-  if (revokeBtn) {
-    try {
-      await revokeKey(revokeBtn.dataset.revokeKey);
-    } catch (error) {
-      showToast(error.message, "error");
-    }
-    return;
-  }
-
-  const copyBtn = event.target.closest("[data-copy-key]");
-  if (copyBtn) {
-    try {
-      await copyText(copyBtn.dataset.copyKey);
-    } catch (error) {
-      showToast("Não foi possível copiar.", "error");
-    }
-    return;
-  }
-
-  if (event.target.id === "copyGeneratedKeyBtn") {
-    try {
-      await copyText(document.getElementById("generatedKeyValue").textContent.trim());
-    } catch (error) {
-      showToast("Não foi possível copiar.", "error");
-    }
   }
 });
 
 document.addEventListener("DOMContentLoaded", async () => {
   document.getElementById("adminIdentity").textContent = ADMIN_USER || "admin";
   document.getElementById("createUserForm").addEventListener("submit", createUser);
-  document.getElementById("createKeyForm").addEventListener("submit", createKey);
   document.getElementById("reloadUsersBtn").addEventListener("click", () => loadUsers().catch((error) => showToast(error.message, "error")));
-  document.getElementById("reloadKeysBtn").addEventListener("click", () => loadKeys().catch((error) => showToast(error.message, "error")));
   document.getElementById("reloadLogsBtn").addEventListener("click", () => loadLogs().catch((error) => showToast(error.message, "error")));
   document.getElementById("refreshAllBtn").addEventListener("click", () => refreshEverything({ logs: true }).then(() => showToast("Painel atualizado.", "success")).catch((error) => showToast(error.message, "error")));
   document.getElementById("userSearchInput").addEventListener("input", () => loadUsers().catch((error) => showToast(error.message, "error")));
-  document.getElementById("keySearchInput").addEventListener("input", debounce(() => loadKeys().catch((error) => showToast(error.message, "error")), 260));
-  document.getElementById("keyStatusSelect").addEventListener("change", () => loadKeys().catch((error) => showToast(error.message, "error")));
   document.getElementById("logSearchInput").addEventListener("input", debounce(() => loadLogs().catch((error) => showToast(error.message, "error")), 260));
   document.getElementById("logTypeSelect").addEventListener("change", () => loadLogs().catch((error) => showToast(error.message, "error")));
 
