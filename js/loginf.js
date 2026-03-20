@@ -9,6 +9,20 @@ const keyInput = document.getElementById("keyInput");
 
 let validatedInvite = null;
 
+function hideRegisterForm() {
+  registerForm.hidden = true;
+  registerForm.setAttribute("aria-hidden", "true");
+  registerForm.classList.add("is-hidden");
+  registerForm.style.display = "none";
+}
+
+function showRegisterForm() {
+  registerForm.hidden = false;
+  registerForm.setAttribute("aria-hidden", "false");
+  registerForm.classList.remove("is-hidden");
+  registerForm.style.display = "flex";
+}
+
 function setError(message = "") {
   errorMsg.textContent = message;
 }
@@ -26,9 +40,10 @@ function openKeyPanel() {
 
 function closeKeyPanel() {
   keyPanel.hidden = true;
-  registerForm.hidden = true;
+  hideRegisterForm();
   validatedInvite = null;
   keyInput.value = "";
+  registerForm.reset();
   setKeyMessage("");
   toggleKeyBtn.setAttribute("aria-expanded", "false");
 }
@@ -70,6 +85,8 @@ async function handleValidateKey() {
   const code = keyInput.value.trim();
   setError("");
   setKeyMessage("");
+  hideRegisterForm();
+  validatedInvite = null;
 
   if (!code) {
     setKeyMessage("Digite uma key primeiro.", "error");
@@ -90,20 +107,18 @@ async function handleValidateKey() {
     const result = await response.json();
 
     if (!response.ok || !result.success) {
-      validatedInvite = null;
-      registerForm.hidden = true;
       setKeyMessage(result.message || "Key inválida.", "error");
       return;
     }
 
     validatedInvite = result.invite;
-    registerForm.hidden = false;
+    showRegisterForm();
     setKeyMessage("Key válida. Agora você pode criar a conta.", "success");
     document.getElementById("registerUsername").focus();
   } catch (error) {
     console.error("Erro ao validar key:", error);
+    hideRegisterForm();
     validatedInvite = null;
-    registerForm.hidden = true;
     setKeyMessage("Erro ao validar a key.", "error");
   } finally {
     validateKeyBtn.disabled = false;
@@ -116,7 +131,7 @@ async function handleRegister(event) {
 
   if (!validatedInvite?.code) {
     setKeyMessage("Valide uma key antes de criar a conta.", "error");
-    registerForm.hidden = true;
+    hideRegisterForm();
     return;
   }
 
@@ -152,6 +167,8 @@ async function handleRegister(event) {
     setKeyMessage("Erro ao criar conta.", "error");
   }
 }
+
+hideRegisterForm();
 
 toggleKeyBtn.addEventListener("click", () => {
   if (keyPanel.hidden) openKeyPanel();
