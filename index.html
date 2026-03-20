@@ -17,10 +17,37 @@
       <input type="password" id="password" placeholder="Senha" autocomplete="off" required>
       <button type="submit">Entrar</button>
     </form>
+
+    <div class="login-divider"><span>ou</span></div>
+
+    <button id="toggleKeyAccessBtn" type="button" class="subtle-toggle-btn">Validar key</button>
+
+    <section id="keyAccessPanel" class="key-access-panel" hidden>
+      <form id="keyValidationForm" class="stack-form">
+        <div class="panel-copy">
+          <strong>Acesso por key</strong>
+          <p>Sem abrir cadastro geral. Valida a key e libera a criação da conta.</p>
+        </div>
+        <input type="text" id="inviteKeyInput" placeholder="Cole sua key" autocomplete="off" maxlength="64" required>
+        <button type="submit" class="secondary-action-btn">Validar key</button>
+      </form>
+
+      <form id="registerWithKeyForm" class="stack-form" hidden>
+        <div class="panel-copy ok-copy">
+          <strong>Key validada</strong>
+          <p id="validatedKeyText">Agora crie sua conta.</p>
+        </div>
+        <input type="text" id="registerUsername" placeholder="Novo usuário" autocomplete="off" maxlength="24" required>
+        <input type="text" id="registerDisplayName" placeholder="Nome de exibição (opcional)" autocomplete="off" maxlength="40">
+        <input type="password" id="registerPassword" placeholder="Senha" autocomplete="off" maxlength="80" required>
+        <button type="submit">Criar conta com key</button>
+      </form>
+    </section>
+
     <p id="errorMsg"></p>
+    <p id="successMsg"></p>
   </div>
 
   <script src="js/loginf.js"></script>
 </body>
 </html>
-
