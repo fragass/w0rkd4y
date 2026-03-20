@@ -45,6 +45,10 @@ body{
   flex-direction:column;
 }
 
+.is-hidden{
+  display:none !important;
+}
+
 #loginForm input,
 .register-form input,
 .inline-field-row input{
