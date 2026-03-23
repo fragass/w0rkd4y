@@ -1,0 +1,46 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Solicitações de Mundo</title>
+  <link rel="stylesheet" href="viewer.css">
+</head>
+<body>
+  <main class="viewer-page">
+    <header class="topbar">
+      <h1 class="page-title">Solicitações de Mundo</h1>
+      <div class="topbar-actions">
+        <button id="refreshBtn" class="mc-btn gray" type="button">Atualizar</button>
+        <button id="idealBtn" class="mc-btn green" type="button">Gerar config ideal</button>
+      </div>
+    </header>
+
+    <div id="statusBox" class="status-box"></div>
+
+    <section class="summary-panel">
+      <div class="summary-title">Resumo</div>
+      <div id="summaryText" class="summary-text">Carregando solicitações...</div>
+    </section>
+
+    <section id="cardsContainer" class="cards-grid"></section>
+  </main>
+
+  <div id="overlay" class="overlay hidden">
+    <div class="overlay-panel">
+      <div class="overlay-header">
+        <h2>Configuração Ideal</h2>
+        <button id="closeOverlay" class="mc-btn gray small" type="button">Fechar</button>
+      </div>
+
+      <div class="overlay-desc">
+        Resultado calculado com base nas opções mais votadas entre todos os formulários enviados.
+      </div>
+
+      <div id="idealConfigCard" class="ideal-card"></div>
+    </div>
+  </div>
+
+  <script src="viewer.js"></script>
+</body>
+</html>
