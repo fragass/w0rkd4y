@@ -1,133 +1,299 @@
 <!DOCTYPE html>
 <html lang="pt-BR">
 <head>
-<meta charset="UTF-8">
-<title>Minecraft World Config</title>
-<link rel="stylesheet" href="style.css">
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Configuração do Mundo</title>
+  <link rel="stylesheet" href="style.css">
 </head>
 <body>
+  <main class="menu">
+    <h1 class="page-title">Configuração do Mundo</h1>
 
-<div class="menu">
+    <div id="errorBox" class="error-box"></div>
+    <div id="successBox" class="success-box"></div>
 
-<h1>Configuração do Mundo</h1>
+    <section class="section">
+      <label class="title" for="playerName">Nome de quem está preenchendo</label>
+      <input class="name-field" id="playerName" type="text" placeholder="Digite seu nome" maxlength="40">
+    </section>
 
-<!-- NOME -->
-<div class="section">
-<label>Nome do jogador</label>
-<input id="playerName" placeholder="Digite seu nome">
-</div>
+    <section class="section">
+      <label class="title" for="seed">Semente do mundo</label>
 
-<!-- SEED -->
-<div class="section">
-<label>Semente do mundo</label>
+      <div class="seed-row">
+        <div class="input-wrap">
+          <input class="seed-input" id="seed" type="text" disabled placeholder="Digite a seed">
+        </div>
+        <button type="button" id="seedToggle" class="mc-btn gray">Seed aleatória</button>
+      </div>
 
-<div class="row">
-<input id="seed" disabled placeholder="Digite a seed">
-<button id="seedToggle" class="mc-btn gray">OFF</button>
-</div>
+      <p class="desc">Guia o algoritmo que cria magicamente seu mundo.</p>
+    </section>
 
-<p class="desc">Guia o algoritmo que cria magicamente seu mundo</p>
-</div>
+    <section class="section">
+      <h2>Mundo</h2>
 
-<!-- MUNDO -->
-<div class="section">
-<h2>Mundo</h2>
+      <div class="option">
+        <div class="option-text">
+          <div class="option-title">Mundo clássico</div>
+          <div class="option-desc">Um mundo clássico para construir ou minerar.</div>
+        </div>
+        <div class="mc-toggle" id="classic"></div>
+      </div>
 
-<div class="toggle-row">Mundo clássico <div class="toggle" id="classic"></div></div>
-<div class="toggle-row">Mapa de início <div class="toggle" id="map"></div></div>
-<div class="toggle-row">Baú bônus <div class="toggle" id="bonus"></div></div>
-<div class="toggle-row">Mostrar coordenadas <div class="toggle" id="coords"></div></div>
-<div class="toggle-row">Mostrar dias jogados <div class="toggle" id="days"></div></div>
+      <div class="option">
+        <div class="option-text">
+          <div class="option-title">Mapa de início</div>
+          <div class="option-desc">Surja em um mapa em branco para explorar o seu mundo.</div>
+        </div>
+        <div class="mc-toggle" id="map"></div>
+      </div>
 
-</div>
+      <div class="option">
+        <div class="option-text">
+          <div class="option-title">Baú bônus</div>
+          <div class="option-desc">Surja perto de um baú com itens para começar bem.</div>
+        </div>
+        <div class="mc-toggle" id="bonus"></div>
+      </div>
 
-<!-- GAMEPLAY -->
-<div class="section">
-<h2>Gameplay</h2>
+      <div class="option">
+        <div class="option-text">
+          <div class="option-title">Mostrar coordenadas</div>
+          <div class="option-desc">Exibir sua posição atual.</div>
+        </div>
+        <div class="mc-toggle" id="coords"></div>
+      </div>
 
-<div class="toggle-row">Desbloqueio de receitas <div class="toggle" id="recipes"></div></div>
-<div class="toggle-row">Fogo se espalha <div class="toggle" id="fire"></div></div>
-<div class="toggle-row">Dinamite explode <div class="toggle" id="tnt"></div></div>
-<div class="toggle-row">Itens de criaturas <div class="toggle" id="mobloot"></div></div>
-<div class="toggle-row">Regeneração natural <div class="toggle" id="regen"></div></div>
-<div class="toggle-row">Itens de blocos <div class="toggle" id="blockdrop"></div></div>
-<div class="toggle-row">Avançar noite dormindo <div class="toggle" id="sleep"></div></div>
+      <div class="option">
+        <div class="option-text">
+          <div class="option-title">Mostrar dias jogados</div>
+          <div class="option-desc">Exibir o número de dias jogados.</div>
+        </div>
+        <div class="mc-toggle" id="days"></div>
+      </div>
+    </section>
 
-</div>
+    <section class="section">
+      <h2>Gameplay</h2>
 
-<!-- SLIDER -->
-<div class="section">
-<h2>Jogadores para dormir</h2>
-<input type="range" id="sleepPercent" min="0" max="100" value="100">
-<span id="sleepLabel">100%</span>
-</div>
+      <div class="option">
+        <div class="option-text">
+          <div class="option-title">Desbloqueio de receitas</div>
+          <div class="option-desc">Colete materiais para desbloquear receitas no seu livro de receitas.</div>
+        </div>
+        <div class="mc-toggle active" id="recipes"></div>
+      </div>
 
-<!-- RESPAWN -->
-<div class="section">
-<h2>Respawn</h2>
+      <div class="option">
+        <div class="option-text">
+          <div class="option-title">Fogo se espalha</div>
+          <div class="option-desc">Fogo pode se espalhar entre entidades.</div>
+        </div>
+        <div class="mc-toggle active" id="fire"></div>
+      </div>
 
-<div class="toggle-row">Renascimento imediato <div class="toggle" id="instantRespawn"></div></div>
-<div class="toggle-row">Respawn explode <div class="toggle" id="respawnExplode"></div></div>
+      <div class="option">
+        <div class="option-text">
+          <div class="option-title">Dinamite explode</div>
+          <div class="option-desc">Caixas vermelhas explodem.</div>
+        </div>
+        <div class="mc-toggle active" id="tnt"></div>
+      </div>
 
-<label>Raio</label>
-<input type="number" id="respawnRadius" value="10" max="128">
-</div>
+      <div class="option">
+        <div class="option-text">
+          <div class="option-title">Itens de criaturas</div>
+          <div class="option-desc">Criaturas largam itens quando morrem.</div>
+        </div>
+        <div class="mc-toggle active" id="mobloot"></div>
+      </div>
 
-<!-- SIM -->
-<div class="section">
-<h2>Distância de simulação</h2>
-<select id="simulation">
-<option>4</option>
-<option>6</option>
-<option>8</option>
-</select>
-</div>
+      <div class="option">
+        <div class="option-text">
+          <div class="option-title">Regeneração natural</div>
+          <div class="option-desc">Ganhe ou perca vida com base na sua fome.</div>
+        </div>
+        <div class="mc-toggle active" id="regen"></div>
+      </div>
 
-<!-- CHEATS -->
-<div class="section">
-<h2>Cheats</h2>
-<div class="toggle-row">Ativar cheats <div class="toggle" id="cheats"></div></div>
-</div>
+      <div class="option">
+        <div class="option-text">
+          <div class="option-title">Itens largados de blocos</div>
+          <div class="option-desc">Blocos largam quando estão quebrados.</div>
+        </div>
+        <div class="mc-toggle active" id="blockdrop"></div>
+      </div>
 
-<div class="section">
-<h2>Configurações de trapaça</h2>
+      <div class="option">
+        <div class="option-text">
+          <div class="option-title">Avançar a noite dormindo</div>
+          <div class="option-desc">Dormir na cama à noite fará o tempo avançar para a manhã.</div>
+        </div>
+        <div class="mc-toggle active" id="sleep"></div>
+      </div>
+    </section>
 
-<select id="daycycle">
-<option>Normal</option>
-<option>Sempre dia</option>
-</select>
+    <section class="section">
+      <h2>Jogadores necessários para dormir</h2>
 
-<div class="toggle-row">Manter inventário <div class="toggle" id="keepinv"></div></div>
-<div class="toggle-row">Mob spawning <div class="toggle" id="mobspawn"></div></div>
-<div class="toggle-row">Mob griefing <div class="toggle" id="grief"></div></div>
-<div class="toggle-row">Entity drops <div class="toggle" id="entitydrop"></div></div>
-<div class="toggle-row">Weather <div class="toggle" id="weather"></div></div>
-<div class="toggle-row">Command blocks <div class="toggle" id="command"></div></div>
-<div class="toggle-row">Education <div class="toggle" id="edu"></div></div>
+      <div class="slider-wrap">
+        <div class="slider-top">
+          <div class="slider-label">Quantos jogadores precisam estar na cama?</div>
+          <div class="slider-value" id="sleepLabel">100%</div>
+        </div>
+        <input class="mc-range" type="range" id="sleepPercent" min="0" max="100" value="100">
+      </div>
+    </section>
 
-<label>Tick speed</label>
-<input type="number" id="tick" value="1" max="4096">
-</div>
+    <section class="section">
+      <h2>Respawn</h2>
 
-<!-- DIFICULDADE -->
-<div class="section">
-<h2>Dificuldade</h2>
+      <div class="option">
+        <div class="option-text">
+          <div class="option-title">Renascimento imediato</div>
+          <div class="option-desc">Pule o menu “Você morreu!” e renasça imediatamente.</div>
+        </div>
+        <div class="mc-toggle" id="instantRespawn"></div>
+      </div>
 
-<div class="difficulty">
-<button class="diff" data="Pacífico">Pacífico</button>
-<button class="diff" data="Fácil">Fácil</button>
-<button class="diff active" data="Normal">Normal</button>
-<button class="diff" data="Difícil">Difícil</button>
-</div>
+      <div class="option">
+        <div class="option-text">
+          <div class="option-title">Blocos de renascimento explodem</div>
+          <div class="option-desc">Âncoras de renascimento e camas podem explodir.</div>
+        </div>
+        <div class="mc-toggle active" id="respawnExplode"></div>
+      </div>
 
-<div class="toggle-row">Hardcore <div class="toggle" id="hardcore"></div></div>
+      <div class="field-stack" style="margin-top: 14px;">
+        <label class="title" for="respawnRadius">Raio de renascimento</label>
+        <input class="mc-number" id="respawnRadius" type="number" min="0" max="128" value="10">
+        <p class="desc">Renasça no raio desse bloco quando morrer e não houver um ponto de invocação definido.</p>
+      </div>
+    </section>
 
-</div>
+    <section class="section">
+      <h2>Distância de simulação</h2>
+      <select class="mc-select" id="simulation">
+        <option value="4">4 pedaços</option>
+        <option value="6">6 pedaços</option>
+        <option value="8">8 pedaços</option>
+        <option value="10">10 pedaços</option>
+      </select>
+    </section>
 
-<button class="mc-btn green" onclick="send()">Criar Mundo</button>
+    <section class="section">
+      <h2>Cheats</h2>
+      <div class="option">
+        <div class="option-text">
+          <div class="option-title">Ativar cheats</div>
+          <div class="option-desc">Personaliza o jogo com configurações de trapaça.</div>
+        </div>
+        <div class="mc-toggle" id="cheats"></div>
+      </div>
+    </section>
 
-</div>
+    <section class="section">
+      <h2>Configurações de trapaça</h2>
 
-<script src="script.js"></script>
+      <div class="field-stack" style="margin-bottom: 14px;">
+        <label class="title" for="daycycle">Ciclo da luz do dia</label>
+        <select class="mc-select" id="daycycle">
+          <option value="Normal">Normal</option>
+          <option value="Sempre dia">Sempre dia</option>
+        </select>
+      </div>
+
+      <div class="option">
+        <div class="option-text">
+          <div class="option-title">Manter inventário</div>
+          <div class="option-desc">Mantém todos os itens no inventário quando você morrer.</div>
+        </div>
+        <div class="mc-toggle" id="keepinv"></div>
+      </div>
+
+      <div class="option">
+        <div class="option-text">
+          <div class="option-title">Geração de criaturas</div>
+          <div class="option-desc">Criaturas são invocadas naturalmente.</div>
+        </div>
+        <div class="mc-toggle active" id="mobspawn"></div>
+      </div>
+
+      <div class="option">
+        <div class="option-text">
+          <div class="option-title">Vandalismo de criaturas</div>
+          <div class="option-desc">Criaturas podem mover e destruir blocos em seu mundo.</div>
+        </div>
+        <div class="mc-toggle active" id="grief"></div>
+      </div>
+
+      <div class="option">
+        <div class="option-text">
+          <div class="option-title">Entidades largam itens</div>
+          <div class="option-desc">Entidades que não são criaturas, como pinturas, largam itens quando destruídas.</div>
+        </div>
+        <div class="mc-toggle active" id="entitydrop"></div>
+      </div>
+
+      <div class="option">
+        <div class="option-text">
+          <div class="option-title">Ciclo climático</div>
+          <div class="option-desc">Possibilidade de chuva, neve e tempestades.</div>
+        </div>
+        <div class="mc-toggle active" id="weather"></div>
+      </div>
+
+      <div class="option">
+        <div class="option-text">
+          <div class="option-title">Blocos de comando</div>
+          <div class="option-desc">Use comandos para programar esses blocos.</div>
+        </div>
+        <div class="mc-toggle active" id="command"></div>
+      </div>
+
+      <div class="option">
+        <div class="option-text">
+          <div class="option-title">Recursos de Minecraft Education</div>
+          <div class="option-desc">Habilita itens educacionais como o kit de química.</div>
+        </div>
+        <div class="mc-toggle" id="edu"></div>
+      </div>
+
+      <div class="field-stack" style="margin-top: 14px;">
+        <label class="title" for="tick">Velocidade de tick aleatória</label>
+        <input class="mc-number" id="tick" type="number" min="1" max="4096" value="1">
+        <p class="desc">Afeta o comportamento de certos blocos, como a velocidade do crescimento e deterioração da vegetação.</p>
+      </div>
+    </section>
+
+    <section class="section">
+      <h2>Dificuldade</h2>
+
+      <div class="difficulty-grid">
+        <button type="button" class="diff-btn" data-difficulty="Pacífico">Pacífico</button>
+        <button type="button" class="diff-btn" data-difficulty="Fácil">Fácil</button>
+        <button type="button" class="diff-btn active" data-difficulty="Normal">Normal</button>
+        <button type="button" class="diff-btn" data-difficulty="Difícil">Difícil</button>
+      </div>
+
+      <p class="section-note">Criaturas hostis são invocadas e causam dano padrão. A barra de fome se esvazia e reduz seu nível de vida até meio coração.</p>
+
+      <div class="option" style="margin-top: 14px;">
+        <div class="option-text">
+          <div class="option-title">Hardcore</div>
+          <div class="option-desc">Você não pode renascer se morrer. Boa sorte! Você vai precisar.</div>
+        </div>
+        <div class="mc-toggle" id="hardcore"></div>
+      </div>
+    </section>
+
+    <div class="submit-wrap">
+      <button type="button" class="mc-btn green submit-btn" onclick="send()">Enviar configuração</button>
+    </div>
+  </main>
+
+  <script src="script.js"></script>
 </body>
 </html>
