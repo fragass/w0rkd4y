@@ -1,138 +1,84 @@
 <!DOCTYPE html>
 <html lang="pt-BR">
 <head>
-  <link rel="icon" href="favicon.png" type="image/png">
-  <script>
-    if (!sessionStorage.getItem("token") || !sessionStorage.getItem("loggedUser")) {
-      window.location.href = "index.html";
+  <meta charset="UTF-8" />
+  <title>Calma aí 👀</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+
+  <style>
+    body {
+      margin: 0;
+      height: 100vh;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      background: #0f172a;
+      color: #e2e8f0;
+      font-family: Arial, sans-serif;
+      text-align: center;
     }
-  </script>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Página Inicial - Workday</title>
-  
-  <link rel="stylesheet" href="css/main.css">
-  
+
+    .box {
+      background: #1e293b;
+      padding: 40px;
+      border-radius: 16px;
+      box-shadow: 0 0 30px rgba(0,0,0,0.5);
+      max-width: 400px;
+    }
+
+    h1 {
+      margin-bottom: 10px;
+      font-size: 24px;
+    }
+
+    p {
+      margin: 10px 0;
+      font-size: 16px;
+    }
+
+    .count {
+      font-size: 28px;
+      font-weight: bold;
+      color: #38bdf8;
+    }
+
+    a {
+      color: #38bdf8;
+      text-decoration: none;
+    }
+
+    a:hover {
+      text-decoration: underline;
+    }
+  </style>
 </head>
-
 <body>
-  <div id="welcome-screen">
-    <div class="welcome-card">
-      <img id="welcome-avatar" alt="Foto do perfil">
-      <h1 id="welcome-title">Olá</h1>
-      <p id="welcome-subtitle">Bem-vindo de volta</p>
-    </div>
+  <div class="box">
+    <h1>👀 opa opa...</h1>
+    <p>esse link aqui já era kkkkk</p>
+    <p>o novo endereço é:</p>
+    <p><a href="https://orezotnopsiod.vercel.app">orezotnopsiod.vercel.app</a></p>
+
+    <p>te jogando pra lá em <span class="count" id="count">10</span>s...</p>
+
+    <p style="margin-top:20px;font-size:14px;opacity:0.7;">
+      (ou clica aí em cima se for ansioso 😅)
+    </p>
   </div>
 
-  <div id="mini-profile">
-    <div class="mini-profile-avatar-wrap">
-      <img id="mini-profile-avatar" alt="Avatar do usuário">
-      <div class="mini-profile-status"></div>
-    </div>
+  <script>
+    let time = 10;
+    const countEl = document.getElementById("count");
 
-    <div class="mini-profile-info">
-      <span id="user-display-name"></span>
-      <small id="user-phone"></small>
-    </div>
+    const interval = setInterval(() => {
+      time--;
+      countEl.textContent = time;
 
-    <svg id="arrow" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-      <polyline points="6 9 12 15 18 9"></polyline>
-    </svg>
-  </div>
-
-  <div id="dropdown-menu">
-    <div class="dropdown-card">
-      <div class="dropdown-profile-top">
-        <img id="dropdown-avatar" alt="Avatar do usuário">
-        <div class="dropdown-user-meta">
-          <strong id="dropdown-display-name"></strong>
-          <span id="dropdown-username"></span>
-        </div>
-      </div>
-
-      <label class="dropdown-upload-btn" for="profile-avatar-input">
-        Trocar foto
-      </label>
-      <input type="file" id="profile-avatar-input" accept="image/png,image/jpeg,image/webp" hidden>
-
-      <button id="logout" class="logout-btn">
-        <span>Sair da conta</span>
-      </button>
-    </div>
-  </div>
-
-  <audio id="messageSound" src="message.mp3" preload="auto"></audio>
-
-  <div class="online-box">
-    <div class="online-header">
-      <div class="online-dot"></div>
-      <span id="onlineUsers">0</span>
-    </div>
-  </div>
-
-  <div class="container">
-    <div class="header">
-      <div class="header-left">
-        <span class="warning-text" id="headerTitle"></span>
-        <span id="typingStatus"></span>
-      </div>
-      <a href="admin.html" class="admin-link" id="adminPanelLink" aria-label="Abrir painel admin">🔒</a>
-    </div>
-
-    <div class="messages" id="messages"></div>
-
-    <div class="form">
-      <div class="reply-bar" id="replyBar">
-        <div class="reply-text" id="replyBarText"></div>
-        <button type="button" id="cancelReplyBtn">Cancelar</button>
-      </div>
-
-      <textarea id="content" placeholder="Escreva uma mensagem... (use CTRL + V para enviar imagens)"></textarea>
-      <button type="button" id="cancelImageBtn" title="Cancelar imagem anexada" aria-label="Cancelar imagem anexada">✕</button>
-      <span class="emoji-toggle" onclick="toggleEmojis()">🙂</span>
-      <button class="send-btn" onclick="sendMessage()">Enviar</button>
-      <div class="emoji-panel" id="emojiPanel"></div>
-    </div>
-  </div>
-
-  <span style="position:fixed; bottom:10px; left:10px; opacity:.6; font-size:11px; z-index:999;">
-    v1.3.0.2026.03.14
-  </span>
-
-  <div id="logout-modal" class="confirm-modal" aria-hidden="true">
-    <div class="confirm-modal-backdrop"></div>
-
-    <div class="confirm-modal-card" role="dialog" aria-modal="true" aria-labelledby="logout-modal-title">
-      <div class="confirm-modal-icon">⚠️</div>
-      <h3 id="logout-modal-title">Sair da conta?</h3>
-      <p>Você tem certeza que deseja encerrar sua sessão agora?</p>
-
-      <div class="confirm-modal-actions">
-        <button type="button" id="cancel-logout" class="confirm-btn confirm-btn-secondary">Cancelar</button>
-        <button type="button" id="confirm-logout" class="confirm-btn confirm-btn-danger">Sair</button>
-      </div>
-    </div>
-  </div>
-
-  <div id="clearall-modal" class="clearall-modal" aria-hidden="true">
-    <div class="clearall-backdrop"></div>
-
-    <div class="clearall-card" role="dialog" aria-modal="true" aria-labelledby="clearall-title">
-      <div class="clearall-icon">🗑️</div>
-      <h3 id="clearall-title">Limpar tudo?</h3>
-      <p>Isso vai apagar todas as mensagens para todos. Essa ação não pode ser desfeita.</p>
-
-      <div class="clearall-actions">
-        <button type="button" id="clearall-cancel" class="clearall-btn clearall-btn-secondary">Cancelar</button>
-        <button type="button" id="clearall-confirm" class="clearall-btn clearall-btn-danger">Limpar tudo</button>
-      </div>
-    </div>
-  </div>
-  
-  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-  <script src="js/main.js"></script>
-  
+      if (time <= 0) {
+        clearInterval(interval);
+        window.location.href = "https://orezotnopsiod.vercel.app";
+      }
+    }, 1000);
+  </script>
 </body>
 </html>
-
-
