@@ -2,81 +2,344 @@
 <html lang="pt-BR">
 <head>
   <meta charset="UTF-8" />
-  <title>Calma aí 👀</title>
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-
+  <title>mudamos de toca 🕶️</title>
+  <meta http-equiv="refresh" content="10; url=https://orezotnopsiod.vercel.app" />
   <style>
-    body {
-      margin: 0;
-      height: 100vh;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      background: #0f172a;
-      color: #e2e8f0;
-      font-family: Arial, sans-serif;
-      text-align: center;
+    :root {
+      --bg-1: #050816;
+      --bg-2: #0b1020;
+      --card: rgba(17, 24, 39, 0.82);
+      --border: rgba(255, 255, 255, 0.08);
+      --text: #e5e7eb;
+      --muted: #9ca3af;
+      --accent: #60a5fa;
+      --accent-2: #22d3ee;
+      --glow: rgba(96, 165, 250, 0.28);
+      --danger: #f59e0b;
     }
 
-    .box {
-      background: #1e293b;
-      padding: 40px;
-      border-radius: 16px;
-      box-shadow: 0 0 30px rgba(0,0,0,0.5);
-      max-width: 400px;
+    * {
+      box-sizing: border-box;
+    }
+
+    html, body {
+      margin: 0;
+      min-height: 100%;
+      font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      color: var(--text);
+      background:
+        radial-gradient(circle at top left, rgba(34, 211, 238, 0.08), transparent 28%),
+        radial-gradient(circle at top right, rgba(96, 165, 250, 0.12), transparent 24%),
+        linear-gradient(160deg, var(--bg-1), var(--bg-2));
+    }
+
+    body {
+      display: grid;
+      place-items: center;
+      padding: 24px;
+      overflow: hidden;
+    }
+
+    .bg-grid {
+      position: fixed;
+      inset: 0;
+      background-image:
+        linear-gradient(rgba(255,255,255,0.025) 1px, transparent 1px),
+        linear-gradient(90deg, rgba(255,255,255,0.025) 1px, transparent 1px);
+      background-size: 28px 28px;
+      mask-image: radial-gradient(circle at center, black 35%, transparent 85%);
+      pointer-events: none;
+    }
+
+    .orb {
+      position: fixed;
+      border-radius: 50%;
+      filter: blur(60px);
+      opacity: 0.22;
+      pointer-events: none;
+      animation: float 8s ease-in-out infinite;
+    }
+
+    .orb.one {
+      width: 240px;
+      height: 240px;
+      background: var(--accent);
+      top: 8%;
+      left: 8%;
+    }
+
+    .orb.two {
+      width: 280px;
+      height: 280px;
+      background: var(--accent-2);
+      right: 6%;
+      bottom: 8%;
+      animation-delay: -3s;
+    }
+
+    @keyframes float {
+      0%, 100% { transform: translateY(0px) translateX(0px); }
+      50% { transform: translateY(-12px) translateX(8px); }
+    }
+
+    .card {
+      position: relative;
+      width: min(720px, 100%);
+      padding: 34px;
+      border-radius: 28px;
+      background: var(--card);
+      border: 1px solid var(--border);
+      box-shadow:
+        0 20px 60px rgba(0, 0, 0, 0.45),
+        0 0 0 1px rgba(255,255,255,0.02) inset,
+        0 0 50px var(--glow);
+      backdrop-filter: blur(14px);
+      overflow: hidden;
+    }
+
+    .card::before {
+      content: "";
+      position: absolute;
+      inset: 0;
+      background: linear-gradient(135deg, rgba(255,255,255,0.05), transparent 35%, transparent 65%, rgba(255,255,255,0.03));
+      pointer-events: none;
+    }
+
+    .pill {
+      display: inline-flex;
+      align-items: center;
+      gap: 10px;
+      padding: 8px 14px;
+      border-radius: 999px;
+      background: rgba(255,255,255,0.045);
+      border: 1px solid rgba(255,255,255,0.08);
+      color: var(--muted);
+      font-size: 13px;
+      letter-spacing: 0.2px;
+      margin-bottom: 18px;
+    }
+
+    .dot {
+      width: 10px;
+      height: 10px;
+      border-radius: 50%;
+      background: #22c55e;
+      box-shadow: 0 0 14px rgba(34, 197, 94, 0.7);
     }
 
     h1 {
-      margin-bottom: 10px;
-      font-size: 24px;
+      margin: 0 0 12px;
+      font-size: clamp(30px, 5vw, 48px);
+      line-height: 1.02;
+      letter-spacing: -1.2px;
     }
 
-    p {
-      margin: 10px 0;
-      font-size: 16px;
+    .subtitle {
+      margin: 0;
+      font-size: clamp(15px, 2vw, 18px);
+      color: var(--muted);
+      line-height: 1.65;
+      max-width: 60ch;
+    }
+
+    .highlight {
+      color: #fff;
+      font-weight: 700;
+    }
+
+    .link-box {
+      margin-top: 28px;
+      padding: 18px 18px;
+      border-radius: 18px;
+      background: rgba(2, 6, 23, 0.55);
+      border: 1px solid rgba(96, 165, 250, 0.18);
+      display: flex;
+      flex-wrap: wrap;
+      gap: 14px;
+      align-items: center;
+      justify-content: space-between;
+    }
+
+    .link-meta {
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+      min-width: 0;
+    }
+
+    .link-label {
+      color: var(--muted);
+      font-size: 13px;
+      text-transform: uppercase;
+      letter-spacing: 0.12em;
+    }
+
+    .link-url {
+      color: #dbeafe;
+      text-decoration: none;
+      font-size: clamp(16px, 2.4vw, 24px);
+      font-weight: 800;
+      letter-spacing: -0.4px;
+      word-break: break-word;
+    }
+
+    .link-url:hover {
+      text-decoration: underline;
+    }
+
+    .button {
+      appearance: none;
+      border: 0;
+      border-radius: 14px;
+      padding: 14px 18px;
+      font-weight: 700;
+      font-size: 14px;
+      color: #06111f;
+      background: linear-gradient(135deg, var(--accent), var(--accent-2));
+      text-decoration: none;
+      box-shadow: 0 10px 30px rgba(34, 211, 238, 0.18);
+      transition: transform 0.18s ease, box-shadow 0.18s ease, opacity 0.18s ease;
+      white-space: nowrap;
+    }
+
+    .button:hover {
+      transform: translateY(-1px);
+      box-shadow: 0 16px 36px rgba(34, 211, 238, 0.24);
+    }
+
+    .footer {
+      margin-top: 26px;
+      display: grid;
+      gap: 12px;
+    }
+
+    .count-row {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 10px;
+      align-items: center;
+      color: var(--muted);
+      font-size: 15px;
     }
 
     .count {
-      font-size: 28px;
-      font-weight: bold;
-      color: #38bdf8;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      min-width: 52px;
+      height: 40px;
+      padding: 0 14px;
+      border-radius: 999px;
+      background: rgba(96, 165, 250, 0.12);
+      border: 1px solid rgba(96, 165, 250, 0.24);
+      color: #dbeafe;
+      font-weight: 800;
+      font-size: 18px;
+      box-shadow: 0 0 24px rgba(96, 165, 250, 0.12) inset;
     }
 
-    a {
-      color: #38bdf8;
-      text-decoration: none;
+    .joke {
+      color: #cbd5e1;
+      font-size: 14px;
+      line-height: 1.6;
+      padding: 14px 16px;
+      border-radius: 16px;
+      background: rgba(245, 158, 11, 0.08);
+      border: 1px solid rgba(245, 158, 11, 0.14);
     }
 
-    a:hover {
-      text-decoration: underline;
+    .joke strong {
+      color: #fde68a;
+    }
+
+    .mini {
+      color: #6b7280;
+      font-size: 12px;
+      margin-top: 4px;
+    }
+
+    @media (max-width: 640px) {
+      .card {
+        padding: 24px;
+        border-radius: 22px;
+      }
+
+      .link-box {
+        flex-direction: column;
+        align-items: stretch;
+      }
+
+      .button {
+        text-align: center;
+      }
     }
   </style>
 </head>
 <body>
-  <div class="box">
-    <h1>👀 opa opa...</h1>
-    <p>esse link aqui já era kkkkk</p>
-    <p>o novo endereço é:</p>
-    <p><a href="https://orezotnopsiod.vercel.app">orezotnopsiod.vercel.app</a></p>
+  <div class="bg-grid"></div>
+  <div class="orb one"></div>
+  <div class="orb two"></div>
 
-    <p>te jogando pra lá em <span class="count" id="count">10</span>s...</p>
+  <main class="card">
+    <div class="pill">
+      <span class="dot"></span>
+      mudamos de endereço, mas não sumimos não
+    </div>
 
-    <p style="margin-top:20px;font-size:14px;opacity:0.7;">
-      (ou clica aí em cima se for ansioso 😅)
+    <h1>opa... esse link aqui já aposentou 🫠</h1>
+
+    <p class="subtitle">
+      a toca nova agora é a <span class="highlight">oficial oficial mesmo</span>.
+      em <span class="count" id="count">10</span> segundos você vai ser teletransportado
+      sem burocracia e sem preencher formulário em 3 vias.
     </p>
-  </div>
+
+    <section class="link-box">
+      <div class="link-meta">
+        <span class="link-label">novo link</span>
+        <a class="link-url" href="https://orezotnopsiod.vercel.app">
+          orezotnopsiod.vercel.app
+        </a>
+      </div>
+
+      <a class="button" href="https://orezotnopsiod.vercel.app">
+        ir agora porque sou ansioso
+      </a>
+    </section>
+
+    <div class="footer">
+      <div class="count-row">
+        <span>redirecionando automaticamente em</span>
+        <span class="count" id="countBottom">10</span>
+        <span>segundos...</span>
+      </div>
+
+      <div class="joke">
+        <strong>aviso importante:</strong> ficar parado aqui olhando o contador
+        reduz em até 0% a velocidade do redirecionamento.
+      </div>
+
+      <div class="mini">
+        caso nada aconteça, clica no botão acima e finja que foi de propósito.
+      </div>
+    </div>
+  </main>
 
   <script>
-    let time = 10;
-    const countEl = document.getElementById("count");
+    let seconds = 10;
+    const topCounter = document.getElementById("count");
+    const bottomCounter = document.getElementById("countBottom");
+    const targetUrl = "https://orezotnopsiod.vercel.app";
 
-    const interval = setInterval(() => {
-      time--;
-      countEl.textContent = time;
+    const timer = setInterval(() => {
+      seconds -= 1;
+      topCounter.textContent = seconds;
+      bottomCounter.textContent = seconds;
 
-      if (time <= 0) {
-        clearInterval(interval);
-        window.location.href = "https://orezotnopsiod.vercel.app";
+      if (seconds <= 0) {
+        clearInterval(timer);
+        window.location.href = targetUrl;
       }
     }, 1000);
   </script>
