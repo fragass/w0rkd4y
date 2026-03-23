@@ -1,26 +1,84 @@
 <!DOCTYPE html>
 <html lang="pt-BR">
 <head>
-  <script async src="https://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js?client=ca-pub-9969980794780268"
-     crossorigin="anonymous"></script>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Workday CNX</title>
-  <link rel="icon" href="favicon.png" type="image/png">
-  <link rel="stylesheet" href="css/loginf.css">
+  <meta charset="UTF-8" />
+  <title>Calma aí 👀</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+
+  <style>
+    body {
+      margin: 0;
+      height: 100vh;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      background: #0f172a;
+      color: #e2e8f0;
+      font-family: Arial, sans-serif;
+      text-align: center;
+    }
+
+    .box {
+      background: #1e293b;
+      padding: 40px;
+      border-radius: 16px;
+      box-shadow: 0 0 30px rgba(0,0,0,0.5);
+      max-width: 400px;
+    }
+
+    h1 {
+      margin-bottom: 10px;
+      font-size: 24px;
+    }
+
+    p {
+      margin: 10px 0;
+      font-size: 16px;
+    }
+
+    .count {
+      font-size: 28px;
+      font-weight: bold;
+      color: #38bdf8;
+    }
+
+    a {
+      color: #38bdf8;
+      text-decoration: none;
+    }
+
+    a:hover {
+      text-decoration: underline;
+    }
+  </style>
 </head>
 <body>
+  <div class="box">
+    <h1>👀 opa opa...</h1>
+    <p>esse link aqui já era kkkkk</p>
+    <p>o novo endereço é:</p>
+    <p><a href="https://orezotnopsiod.vercel.app">orezotnopsiod.vercel.app</a></p>
 
-  <div class="login-card">
-    <form id="loginForm">
-      <input type="text" id="username" placeholder="Usuário" autocomplete="off" required>
-      <input type="password" id="password" placeholder="Senha" autocomplete="off" required>
-      <button type="submit">Entrar</button>
-    </form>
-    <p id="errorMsg"></p>
+    <p>te jogando pra lá em <span class="count" id="count">10</span>s...</p>
+
+    <p style="margin-top:20px;font-size:14px;opacity:0.7;">
+      (ou clica aí em cima se for ansioso 😅)
+    </p>
   </div>
 
-  <script src="js/loginf.js"></script>
+  <script>
+    let time = 10;
+    const countEl = document.getElementById("count");
+
+    const interval = setInterval(() => {
+      time--;
+      countEl.textContent = time;
+
+      if (time <= 0) {
+        clearInterval(interval);
+        window.location.href = "https://orezotnopsiod.vercel.app";
+      }
+    }, 1000);
+  </script>
 </body>
 </html>
-
