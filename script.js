@@ -6,7 +6,10 @@ document.querySelectorAll(".mc-toggle").forEach(toggle => {
 
 const seedBtn = document.getElementById("seedToggle");
 const seedInput = document.getElementById("seed");
+const submitBtn = document.getElementById("submitBtn");
+
 let useSeed = false;
+let isSubmitting = false;
 
 seedBtn.addEventListener("click", () => {
   useSeed = !useSeed;
@@ -62,7 +65,17 @@ function isActive(id) {
   return document.getElementById(id).classList.contains("active");
 }
 
+function setSubmittingState(submitting) {
+  isSubmitting = submitting;
+  submitBtn.disabled = submitting;
+  submitBtn.textContent = submitting ? "Enviando..." : "Enviar configuração";
+  submitBtn.style.opacity = submitting ? "0.7" : "1";
+  submitBtn.style.cursor = submitting ? "not-allowed" : "pointer";
+}
+
 async function send() {
+  if (isSubmitting) return;
+
   const playerName = document.getElementById("playerName").value.trim();
   const respawnRadius = Number(document.getElementById("respawnRadius").value);
   const tick = Number(document.getElementById("tick").value);
@@ -130,6 +143,8 @@ async function send() {
     hardcore: isActive("hardcore")
   };
 
+  setSubmittingState(true);
+
   try {
     const response = await fetch("/api/save", {
       method: "POST",
@@ -143,11 +158,14 @@ async function send() {
 
     if (!response.ok) {
       showError(result.error || "Não foi possível enviar a configuração.");
+      setSubmittingState(false);
       return;
     }
 
     showSuccess("Configuração enviada com sucesso.");
+    submitBtn.textContent = "Enviado com sucesso";
   } catch (error) {
     showError("Erro de conexão ao enviar a configuração.");
+    setSubmittingState(false);
   }
 }
