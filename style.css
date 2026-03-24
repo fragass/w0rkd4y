@@ -509,3 +509,8 @@ body {
     font-size: 18px;
   }
 }
+.submit-btn:disabled {
+  opacity: 0.7;
+  cursor: not-allowed;
+  filter: grayscale(0.2);
+}
